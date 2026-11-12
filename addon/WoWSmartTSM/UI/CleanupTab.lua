@@ -100,21 +100,24 @@ function CleanupTab.Render(parent)
 
 	ItemContextMenu.Hide()
 
-	local root = Layout.Begin(parent)
+	local root = Layout.Begin(parent, { compact = true, headerHeight = 28, footerHeight = 28 })
 	local _, bw = Layout.HeaderButton(root.header, L("SCAN"), function()
 		ScanService.ReevaluateBags({ reason = "cleanup_ui" })
 		CleanupTab.Render(parent)
 	end)
 	local title = (role == C.ROLES.BANK) and "Bank-Aufräumen" or L("CLEANUP")
-	Layout.HeaderTitle(root.header, title, (bw or 160) + 12)
-
-	local stack = Layout.BodyStack(root)
-	Layout.AddText(
-		stack,
-		string.format("Rolle: %s | Charakter: %s", tostring(role), tostring(snap.currentKey or CP.GetCurrentKey and CP.GetCurrentKey())),
-		"GameFontHighlightSmall",
-		Theme.COLORS.muted
+	Layout.HeaderTitle(
+		root.header,
+		string.format(
+			"%s · %s · %s",
+			title,
+			tostring(role),
+			tostring(snap.currentKey or (CP.GetCurrentKey and CP.GetCurrentKey()) or "")
+		),
+		(bw or 140) + 8
 	)
+
+	local stack = Layout.BodyStack(root) -- scroll OK for large item lists
 
 	-- Role-aware metrics
 	if role == C.ROLES.BANK then

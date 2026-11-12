@@ -3,16 +3,17 @@ local Theme = Smart:Module("Theme")
 local Layout = Smart:Module("Layout")
 
 --[[
-  Robust tab content layout (v0.2.2):
+  Robust tab content layout (v0.2.2+) / compact no-scroll (v0.2.6):
   - Replace managed _smartRoot each render
   - Never mass-unparent host children (BackdropTemplate NineSlice must stay)
   - Explicit size fallbacks when host reports 0x0 while hidden
   - Header / body / footer regions with measured stacks
+  - Two-column + content budget helpers; scroll only when needed
   - Existence checks use '.' not ':' (':' is call-only in Lua)
 ]]
 
-local PADDING = 14
-local GAP = 8
+local PADDING = 10
+local GAP = 6
 
 local discardHost
 
@@ -84,7 +85,9 @@ function Layout.ClearHost(host)
 end
 
 ---Create a fresh root with header/body/footer for a tab render.
-function Layout.Begin(host)
+---@param opts table|nil { headerHeight, footerHeight, compact }
+function Layout.Begin(host, opts)
+	opts = opts or {}
 	Layout.ClearHost(host)
 	local w, h = Layout.ResolveHostSize(host)
 	local root = CreateFrame("Frame", nil, host)
@@ -97,16 +100,19 @@ function Layout.Begin(host)
 	root._smartManaged = true
 	host._smartRoot = root
 
+	local headerH = opts.headerHeight or (opts.compact and 28 or 36)
+	local footerH = opts.footerHeight or (opts.compact and 48 or 28)
+
 	local header = CreateFrame("Frame", nil, root)
 	header:SetPoint("TOPLEFT", PADDING, -PADDING)
 	header:SetPoint("TOPRIGHT", -PADDING, -PADDING)
-	header:SetHeight(36)
+	header:SetHeight(headerH)
 	header:Show()
 
 	local footer = CreateFrame("Frame", nil, root)
 	footer:SetPoint("BOTTOMLEFT", PADDING, PADDING)
 	footer:SetPoint("BOTTOMRIGHT", -PADDING, PADDING)
-	footer:SetHeight(28)
+	footer:SetHeight(footerH)
 	footer:Show()
 
 	local body = CreateFrame("Frame", nil, root)
@@ -120,7 +126,164 @@ function Layout.Begin(host)
 	root._stackY = 0
 	root._hostWidth = w
 	root._hostHeight = h
+	root._headerH = headerH
+	root._footerH = footerH
+	root._compact = opts.compact and true or false
 	return root
+end
+
+---Usable body pixel budget from measured host size.
+function Layout.ContentBudget(root)
+	local pad = PADDING * 2
+	local w = (root and root._hostWidth) or 900
+	local h = (root and root._hostHeight) or 520
+	local headerH = (root and root._headerH) or 36
+	local footerH = (root and root._footerH) or 28
+	local bodyW = math.max(120, w - pad)
+	local bodyH = math.max(80, h - pad - headerH - footerH - GAP * 2)
+	return {
+		hostW = w,
+		hostH = h,
+		bodyW = bodyW,
+		bodyH = bodyH,
+		colGap = 10,
+		leftW = math.floor((bodyW - 10) * 0.58),
+		rightW = math.floor((bodyW - 10) * 0.42),
+	}
+end
+
+---Two fixed columns filling the body (no outer body scroll).
+function Layout.TwoColumns(root, opts)
+	opts = opts or {}
+	local budget = Layout.ContentBudget(root)
+	local leftRatio = opts.leftRatio or 0.58
+	local gap = opts.gap or 10
+	local leftW = math.floor((budget.bodyW - gap) * leftRatio)
+	local rightW = math.max(100, budget.bodyW - gap - leftW)
+	local body = root.body
+
+	local left = CreateFrame("Frame", nil, body)
+	left:SetPoint("TOPLEFT", 2, -2)
+	left:SetPoint("BOTTOMLEFT", 2, 2)
+	left:SetWidth(leftW)
+	left:Show()
+
+	local right = CreateFrame("Frame", nil, body)
+	right:SetPoint("TOPRIGHT", -2, -2)
+	right:SetPoint("BOTTOMRIGHT", -2, 2)
+	right:SetWidth(rightW)
+	right:Show()
+
+	root._bodyScroll = nil
+	return {
+		left = left,
+		right = right,
+		leftStack = Layout.Stack(left),
+		rightStack = Layout.Stack(right),
+		budget = budget,
+		leftW = leftW,
+		rightW = rightW,
+	}
+end
+
+---Compact selectable rows. Scrolls internally only when content exceeds maxHeight.
+function Layout.CompactList(parent, rows, opts)
+	opts = opts or {}
+	local rowH = opts.rowHeight or 18
+	local maxH = opts.maxHeight or 200
+	local width = opts.width or ((parent.GetWidth and parent:GetWidth()) or 300)
+	if width < 40 then
+		width = 300
+	end
+	local contentH = math.max(rowH, #(rows or {}) * rowH)
+	local needScroll = contentH > maxH + 2
+	local viewH = needScroll and maxH or contentH
+
+	local wrap = CreateFrame("Frame", nil, parent)
+	wrap:SetSize(width, viewH)
+	if opts.point then
+		wrap:SetPoint(opts.point[1], opts.point[2], opts.point[3], opts.point[4] or 0, opts.point[5] or 0)
+	end
+
+	local listParent = wrap
+	if needScroll then
+		local scroll = CreateFrame("ScrollFrame", nil, wrap, "UIPanelScrollFrameTemplate")
+		scroll:SetPoint("TOPLEFT", 0, 0)
+		scroll:SetPoint("BOTTOMRIGHT", -22, 0)
+		local child = CreateFrame("Frame", nil, scroll)
+		child:SetSize(math.max(40, width - 24), contentH)
+		scroll:SetScrollChild(child)
+		listParent = child
+		wrap._scroll = scroll
+	end
+
+	for i, row in ipairs(rows or {}) do
+		local line = CreateFrame("Button", nil, listParent)
+		line:SetSize(math.max(40, (needScroll and width - 24 or width)), rowH)
+		line:SetPoint("TOPLEFT", 0, -((i - 1) * rowH))
+		line:EnableMouse(true)
+		if opts.isSelected and opts.isSelected(row, i) then
+			local hl = line:CreateTexture(nil, "BACKGROUND")
+			hl:SetAllPoints(line)
+			hl:SetTexture("Interface\\Buttons\\WHITE8X8")
+			hl:SetVertexColor(0.18, 0.32, 0.38, 0.55)
+		end
+		local fs = line:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		fs:SetPoint("LEFT", 4, 0)
+		fs:SetPoint("RIGHT", -4, 0)
+		fs:SetJustifyH("LEFT")
+		fs:SetWordWrap(false)
+		local text = row.text or row.label or ""
+		fs:SetText(text)
+		local c = row.color or Theme.COLORS.text
+		fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
+		if opts.onClick then
+			line:SetScript("OnClick", function()
+				opts.onClick(row, i, line)
+			end)
+		end
+		if opts.onEnter then
+			line:SetScript("OnEnter", function()
+				opts.onEnter(row, i, line)
+			end)
+			line:SetScript("OnLeave", function()
+				if opts.onLeave then
+					opts.onLeave(row, i, line)
+				else
+					GameTooltip:Hide()
+				end
+			end)
+		end
+	end
+	wrap._needScroll = needScroll
+	wrap._contentH = contentH
+	wrap._viewH = viewH
+	return wrap
+end
+
+---Footer with action buttons (top) + status text (bottom). Requires taller footerHeight.
+function Layout.FooterActions(footer, buttons, statusText)
+	local fw = (footer.GetWidth and footer:GetWidth()) or 800
+	if fw < 40 then
+		fw = 800
+	end
+	local stack = { parent = footer, y = 0, width = fw }
+	local wrap = Layout.AddButtonRow(stack, buttons or {})
+	local fs = footer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	fs:SetPoint("BOTTOMLEFT", 0, 0)
+	fs:SetPoint("BOTTOMRIGHT", 0, 0)
+	fs:SetJustifyH("LEFT")
+	fs:SetWordWrap(false)
+	fs:SetText(statusText or "")
+	fs:SetTextColor(Theme.COLORS.muted[1], Theme.COLORS.muted[2], Theme.COLORS.muted[3], 1)
+	fs:Show()
+	return wrap, fs
+end
+
+---Whether a content height fits the body without outer scroll.
+function Layout.FitsWithoutScroll(root, contentHeight)
+	local b = Layout.ContentBudget(root)
+	return (contentHeight or 0) <= (b.bodyH - 8)
 end
 
 ---True if the managed root has at least one visible text/button child.

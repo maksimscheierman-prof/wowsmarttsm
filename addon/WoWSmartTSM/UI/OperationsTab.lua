@@ -5,9 +5,12 @@ local Theme = Smart:Module("Theme")
 local Operations = Smart:Module("Operations")
 local OperationsTab = Smart:Module("OperationsTab")
 
+--[[
+  v0.2.6: Compact ops view — status line + section buttons + detail pane.
+]]
+
 local private = {
-	section = "Auctioning", -- Auctioning / Mailing / Vendoring / Suggestions
-	focusId = nil,
+	section = "Suggestions",
 }
 
 local function groupsFormat(path)
@@ -28,12 +31,10 @@ local function fieldLine(label, value, validation)
 		if validation.ok == true then
 			suffix = " ✓"
 		elseif validation.ok == false then
-			suffix = " ✗ (" .. tostring(validation.why) .. ")"
-		elseif validation.ok == nil then
-			suffix = " (? " .. tostring(validation.why) .. ")"
+			suffix = " ✗"
 		end
 	end
-	return label .. ": " .. tostring(v) .. suffix
+	return label .. "=" .. tostring(v) .. suffix
 end
 
 function OperationsTab.Render(parent)
@@ -41,154 +42,108 @@ function OperationsTab.Render(parent)
 	local catalog = Operations.BuildCatalog()
 	local cap = catalog.capabilities or Operations.ProbeCapabilities()
 
-	local root = Layout.Begin(parent)
-	Layout.HeaderTitle(root.header, L("OPERATIONS_TAB"), 12)
-	local stack = Layout.BodyStack(root)
-
-	Layout.AddText(
-		stack,
+	local root = Layout.Begin(parent, { compact = true, footerHeight = 48, headerHeight = 28 })
+	Layout.HeaderTitle(
+		root.header,
 		string.format(
-			"TSM-Ops | Live=%s | Write=%s | Claim=%s",
+			"%s · Live=%s · %s",
+			L("OPERATIONS_TAB"),
 			tostring(catalog.liveAvailable),
-			tostring(cap.writeMode),
-			tostring(cap.claim)
+			tostring(cap.writeMode)
 		),
-		"GameFontHighlightSmall",
-		Theme.COLORS.muted
+		8
 	)
-	for _, w in ipairs(catalog.warnings or {}) do
-		Layout.AddText(stack, w, "GameFontHighlightSmall", Theme.COLORS.warn)
-	end
 
+	local stack = Layout.BodyStack(root, { scroll = false })
 	Layout.AddButtonRow(stack, {
-		{
-			text = "Auctioning",
-			onClick = function()
-				private.section = "Auctioning"
-				OperationsTab.Render(parent)
-			end,
-		},
-		{
-			text = "Mailing",
-			onClick = function()
-				private.section = "Mailing"
-				OperationsTab.Render(parent)
-			end,
-		},
-		{
-			text = "Vendoring",
-			onClick = function()
-				private.section = "Vendoring"
-				OperationsTab.Render(parent)
-			end,
-		},
-		{
-			text = "Vorschläge",
-			onClick = function()
-				private.section = "Suggestions"
-				OperationsTab.Render(parent)
-			end,
-		},
+		{ text = "AH", maxWidth = 56, onClick = function()
+			private.section = "Auctioning"
+			OperationsTab.Render(parent)
+		end },
+		{ text = "Mail", maxWidth = 56, onClick = function()
+			private.section = "Mailing"
+			OperationsTab.Render(parent)
+		end },
+		{ text = "Vendor", maxWidth = 64, onClick = function()
+			private.section = "Vendoring"
+			OperationsTab.Render(parent)
+		end },
+		{ text = "Vorschläge", maxWidth = 90, onClick = function()
+			private.section = "Suggestions"
+			OperationsTab.Render(parent)
+		end },
+		{ text = "In TSM", maxWidth = 70, onClick = function()
+			print("|cff4ecdc4[SmartTSM]|r " .. Operations.OpenTSMHint())
+		end },
 	})
-	Layout.AddGap(stack, 6)
 
 	if private.section == "Suggestions" then
-		Layout.AddText(stack, "Bearbeitbare Smart-Operationsprofile (nicht blind auf alle Items):", "GameFontNormal")
 		for _, sug in ipairs(catalog.suggestions or {}) do
-			Layout.AddGap(stack, 4)
 			Layout.AddText(
 				stack,
-				string.format("[%s] %s → %s", tostring(sug.type), tostring(sug.name), groupsFormat(sug.group)),
-				"GameFontHighlight",
+				string.format("%s · %s → %s", sug.type, sug.name, groupsFormat(sug.group)),
+				"GameFontHighlightSmall",
 				Theme.COLORS.text
 			)
 			if sug.type == "Auctioning" then
 				local val = sug.validation or {}
-				Layout.AddText(stack, fieldLine("Min Price", sug.minPrice, val.minPrice), "GameFontHighlightSmall", Theme.COLORS.muted)
-				Layout.AddText(stack, fieldLine("Normal Price", sug.normalPrice, val.normalPrice), "GameFontHighlightSmall", Theme.COLORS.muted)
-				Layout.AddText(stack, fieldLine("Max Price", sug.maxPrice, val.maxPrice), "GameFontHighlightSmall", Theme.COLORS.muted)
-				Layout.AddText(stack, fieldLine("Post Cap", sug.postCap), "GameFontHighlightSmall", Theme.COLORS.muted)
-				Layout.AddText(stack, fieldLine("Stack Size", sug.stackSize), "GameFontHighlightSmall", Theme.COLORS.muted)
-				Layout.AddText(stack, fieldLine("Duration", sug.duration), "GameFontHighlightSmall", Theme.COLORS.muted)
-				Layout.AddText(stack, fieldLine("Undercut", sug.undercut), "GameFontHighlightSmall", Theme.COLORS.muted)
+				Layout.AddText(
+					stack,
+					table.concat({
+						fieldLine("min", sug.minPrice, val.minPrice),
+						fieldLine("norm", sug.normalPrice, val.normalPrice),
+						fieldLine("max", sug.maxPrice, val.maxPrice),
+						fieldLine("cap", sug.postCap),
+						fieldLine("stack", sug.stackSize),
+						fieldLine("dur", sug.duration),
+						fieldLine("uc", sug.undercut),
+					}, " · "),
+					"GameFontHighlightSmall",
+					Theme.COLORS.muted
+				)
 			elseif sug.type == "Mailing" then
-				Layout.AddText(stack, fieldLine("Empfänger", sug.target), "GameFontHighlightSmall", Theme.COLORS.muted)
-				Layout.AddText(stack, fieldLine("Reserve", sug.keepQty), "GameFontHighlightSmall", Theme.COLORS.muted)
-				if sug.blocked then
-					Layout.AddText(stack, tostring(sug.mailNote), "GameFontHighlightSmall", Theme.COLORS.warn)
-				end
-			elseif sug.type == "Vendoring" then
-				Layout.AddText(stack, fieldLine("Sell trash", sug.sellTrash), "GameFontHighlightSmall", Theme.COLORS.muted)
-				Layout.AddText(stack, fieldLine("vsDestroyValue", sug.vsDestroyValue), "GameFontHighlightSmall", Theme.COLORS.muted)
+				Layout.AddText(
+					stack,
+					fieldLine("Ziel", sug.target) .. (sug.blocked and (" · " .. tostring(sug.mailNote)) or ""),
+					"GameFontHighlightSmall",
+					sug.blocked and Theme.COLORS.warn or Theme.COLORS.muted
+				)
+			else
+				Layout.AddText(
+					stack,
+					fieldLine("trash", sug.sellTrash) .. " · " .. fieldLine("destroy", sug.vsDestroyValue),
+					"GameFontHighlightSmall",
+					Theme.COLORS.muted
+				)
 			end
-			if sug.note then
-				Layout.AddText(stack, sug.note, "GameFontHighlightSmall", Theme.COLORS.muted)
-			end
-			Layout.AddButtonRow(stack, {
-				{
-					text = "Formel zurücksetzen",
-					onClick = function()
-						Operations.ResetSuggestion(sug.id)
-						OperationsTab.Render(parent)
-					end,
-				},
-			})
 		end
-		Layout.AddText(
-			stack,
-			"Formeln in SavedVariables überschreibbar via Operations.SetSuggestionField(id, field, value). Einrichtung in TSM bleibt manuell.",
-			"GameFontHighlightSmall",
-			Theme.COLORS.muted
-		)
 	else
 		local bucket = private.section == "Auctioning" and catalog.auctioning
 			or (private.section == "Mailing" and catalog.mailing or catalog.vendoring)
 		Layout.AddText(
 			stack,
-			string.format("Vorhandene %s-Operationen (live): %d", private.section, #bucket),
-			"GameFontNormal"
+			string.format("%s live: %d — fehlende Felder = %s", private.section, #bucket, Operations.UnknownLabel()),
+			"GameFontHighlightSmall",
+			Theme.COLORS.warn
 		)
 		if #bucket == 0 then
-			Layout.AddText(
-				stack,
-				"Keine Live-Liste — " .. Operations.UnknownLabel() .. ". Nutze Vorschläge + TSM Operations UI.",
-				"GameFontHighlightSmall",
-				Theme.COLORS.warn
-			)
-			-- Show expected fields as unknown template
-			if private.section == "Auctioning" then
-				for _, f in ipairs({ "Min Price", "Normal Price", "Max Price", "Post Cap", "Stack Size", "Duration", "Undercut" }) do
-					Layout.AddText(stack, f .. ": " .. Operations.UnknownLabel(), "GameFontHighlightSmall", Theme.COLORS.muted)
-				end
-			elseif private.section == "Mailing" then
-				for _, f in ipairs({ "Empfänger", "Zugeordnete Gruppen", "Versandregeln", "Reservierte Mengen", "Charakter-Einschränkungen" }) do
-					Layout.AddText(stack, f .. ": " .. Operations.UnknownLabel(), "GameFontHighlightSmall", Theme.COLORS.muted)
-				end
-			else
-				for _, f in ipairs({ "Verkaufsregeln", "Sicherheitsoptionen", "Zugeordnete Gruppen" }) do
-					Layout.AddText(stack, f .. ": " .. Operations.UnknownLabel(), "GameFontHighlightSmall", Theme.COLORS.muted)
-				end
-			end
+			local fields = private.section == "Auctioning"
+					and { "Min", "Normal", "Max", "PostCap", "Stack", "Duration", "Undercut" }
+				or (private.section == "Mailing" and { "Empfänger", "Gruppen", "Regeln", "Reserve" } or { "Regeln", "Sicherheit", "Gruppen" })
+			Layout.AddText(stack, table.concat(fields, " / ") .. " = " .. Operations.UnknownLabel(), "GameFontHighlightSmall", Theme.COLORS.muted)
 		else
-			for _, op in ipairs(bucket) do
-				Layout.AddText(stack, "• " .. tostring(op.name) .. " [" .. tostring(op.source) .. "]", "GameFontHighlight", Theme.COLORS.text)
-				for k, v in pairs(op.fields or {}) do
-					Layout.AddText(stack, "  " .. tostring(k) .. ": " .. tostring(v), "GameFontHighlightSmall", Theme.COLORS.muted)
-				end
+			for i = 1, math.min(8, #bucket) do
+				local op = bucket[i]
+				Layout.AddText(stack, "• " .. tostring(op.name), "GameFontHighlightSmall", Theme.COLORS.text)
 			end
 		end
 	end
 
-	Layout.AddGap(stack, 8)
-	Layout.AddButtonRow(stack, {
+	Layout.FinishStack(stack)
+	Layout.FooterActions(root.footer, {
 		{
-			text = "In TSM einrichten",
-			onClick = function()
-				print("|cff4ecdc4[SmartTSM]|r " .. Operations.OpenTSMHint())
-			end,
-		},
-		{
-			text = L("GROUPS_TAB"),
+			text = "Gruppen",
+			maxWidth = 80,
 			onClick = function()
 				local MainFrame = Smart:GetModule("MainFrame")
 				if MainFrame then
@@ -196,8 +151,15 @@ function OperationsTab.Render(parent)
 				end
 			end,
 		},
-	})
-	Layout.AddText(stack, Operations.OpenTSMHint(), "GameFontHighlightSmall", Theme.COLORS.muted)
-	Layout.FinishStack(stack)
-	Layout.FooterText(root.footer, "Keine automatischen Vendor-/Mail-/AH-Aktionen")
+		{
+			text = "Setup",
+			maxWidth = 70,
+			onClick = function()
+				local MainFrame = Smart:GetModule("MainFrame")
+				if MainFrame then
+					MainFrame.SelectTab("Setup")
+				end
+			end,
+		},
+	}, "Keine Auto-Vendor/Mail/AH · Formeln in Vorschläge editierbar (SV)")
 end

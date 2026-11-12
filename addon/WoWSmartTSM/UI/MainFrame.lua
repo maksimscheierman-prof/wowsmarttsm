@@ -56,6 +56,25 @@ local function labelKeyFor(name)
 	return map[name] or name:upper()
 end
 
+-- Compact tab captions (full name via tooltip); functions unchanged.
+local COMPACT_TAB_LABEL = {
+	Cleanup = "Aufräumen",
+	Dashboard = "Board",
+	Groups = "Gruppen",
+	Operations = "Ops",
+	Posting = "Posten",
+	Mail = "Post",
+	Vendor = "Händler",
+	Hold = "Hold",
+	Skipped = "Skip",
+	Characters = "Chars",
+	Rules = "Regeln",
+	Setup = "Setup",
+	History = "Log",
+	Settings = "Config",
+	Diagnostics = "Diag",
+}
+
 local function defaultTabForRole()
 	local CP = Smart:GetModule("CharacterProfiles")
 	local role = CP and CP.GetRole and CP.GetRole() or C.ROLES.MAIN
@@ -156,20 +175,24 @@ function MainFrame.Create()
 	close:SetPoint("TOPRIGHT", -2, -2)
 
 	local tabBar = CreateFrame("Frame", nil, f)
-	tabBar:SetPoint("TOPLEFT", 12, -48)
-	tabBar:SetPoint("TOPRIGHT", -12, -48)
-	tabBar:SetHeight(48)
+	tabBar:SetPoint("TOPLEFT", 10, -44)
+	tabBar:SetPoint("TOPRIGHT", -10, -44)
+	tabBar:SetHeight(44)
 	private.tabBar = tabBar
 
-	-- Two rows of tabs to avoid overlap with many tabs
+	-- Compact uniform tabs (2 rows max); full name on tooltip
+	local TAB_H = 20
+	local TAB_GAP = 2
 	local x, yRow = 0, 0
+	local barW = tabBar:GetWidth() > 0 and tabBar:GetWidth() or 900
 	for _, name in ipairs(TAB_ORDER) do
 		local btn = CreateFrame("Button", nil, tabBar, "UIPanelButtonTemplate")
-		local label = L(labelKeyFor(name))
-		local tw = math.min(108, math.max(72, (#label * 6) + 16))
-		btn:SetSize(tw, 22)
-		if x + tw > (tabBar:GetWidth() > 0 and tabBar:GetWidth() or 900) then
-			yRow = 24
+		local full = L(labelKeyFor(name))
+		local label = COMPACT_TAB_LABEL[name] or full
+		local tw = math.min(92, math.max(52, (#label * 6) + 12))
+		btn:SetSize(tw, TAB_H)
+		if x + tw > barW then
+			yRow = TAB_H + TAB_GAP
 			x = 0
 		end
 		btn:SetPoint("TOPLEFT", tabBar, "TOPLEFT", x, -yRow)
@@ -177,15 +200,23 @@ function MainFrame.Create()
 		btn:SetScript("OnClick", function()
 			MainFrame.SelectTab(name)
 		end)
+		btn:SetScript("OnEnter", function(self)
+			GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+			GameTooltip:AddLine(full, 1, 1, 1)
+			GameTooltip:Show()
+		end)
+		btn:SetScript("OnLeave", function()
+			GameTooltip:Hide()
+		end)
 		private.tabs[name] = btn
-		x = x + tw + 4
+		x = x + tw + TAB_GAP
 	end
 
 	-- Visual panel (backdrop). Render host is a SEPARATE child so ClearHost
 	-- never touches BackdropTemplate NineSlice / edge children.
 	local panel = CreateFrame("Frame", nil, f, BackdropTemplateMixin and "BackdropTemplate" or nil)
-	panel:SetPoint("TOPLEFT", 12, -100)
-	panel:SetPoint("BOTTOMRIGHT", -12, 12)
+	panel:SetPoint("TOPLEFT", 10, -92)
+	panel:SetPoint("BOTTOMRIGHT", -10, 10)
 	if BackdropTemplateMixin then
 		Widgets.AddBackdrop(panel, Theme.COLORS.panel)
 	end

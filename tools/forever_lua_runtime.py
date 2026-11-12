@@ -86,6 +86,19 @@ local function newFrame(ftype, name, parent, template)
     table.insert(self._regions, fs)
     return fs
   end
+  function f:CreateTexture()
+    local tex = {
+      SetAllPoints = function() end,
+      SetTexture = function() end,
+      SetVertexColor = function() end,
+      SetPoint = function() end,
+      SetSize = function() end,
+      Show = function() end,
+      Hide = function() end,
+    }
+    table.insert(self._regions, tex)
+    return tex
+  end
   function f:CreateFrame(t, n, tmpl)
     return CreateFrame(t, n, self, tmpl)
   end
@@ -257,6 +270,11 @@ REQUIRED_LAYOUT_APIS = (
 	"MeasureButtonWidth",
 	"HasVisibleContent",
 	"ResolveHostSize",
+	"ContentBudget",
+	"TwoColumns",
+	"CompactList",
+	"FooterActions",
+	"FitsWithoutScroll",
 )
 
 

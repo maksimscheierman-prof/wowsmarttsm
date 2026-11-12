@@ -295,16 +295,34 @@ function Groups.BuildImportString(moves, opts)
 			byGroup[g][#byGroup[g] + 1] = item
 		end
 	end
-	if includeEmptyGroups then
+	local emptyPaths = opts.emptyGroupPaths
+	if includeEmptyGroups and not emptyPaths then
+		emptyPaths = {}
 		for _, path in ipairs(SMART_GROUPS) do
-			if not byGroup[path] then
+			emptyPaths[#emptyPaths + 1] = path
+		end
+		emptyPaths[#emptyPaths + 1] = C.SMART_ROOT
+	end
+	if emptyPaths then
+		for _, path in ipairs(emptyPaths) do
+			if path and not byGroup[path] then
 				byGroup[path] = {}
 				order[#order + 1] = path
 			end
 		end
-		if not byGroup[C.SMART_ROOT] then
-			table.insert(order, 1, C.SMART_ROOT)
-			byGroup[C.SMART_ROOT] = {}
+		if not byGroup[C.SMART_ROOT] and includeEmptyGroups then
+			-- ensure root when bootstrapping full smart set
+			local hasRoot = false
+			for _, p in ipairs(emptyPaths) do
+				if p == C.SMART_ROOT then
+					hasRoot = true
+					break
+				end
+			end
+			if not hasRoot then
+				table.insert(order, 1, C.SMART_ROOT)
+				byGroup[C.SMART_ROOT] = {}
+			end
 		end
 	end
 	local parts = {}
