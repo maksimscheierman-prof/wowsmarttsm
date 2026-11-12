@@ -132,24 +132,111 @@ function Layout.AddGap(stack, px)
 	stack.y = stack.y + (px or GAP)
 end
 
+local BTN_PAD_X = 24
+local BTN_GAP = 8
+local BTN_HEIGHT = 24
+local BTN_MIN_W = 72
+local BTN_MAX_W = 220
+
+---Measure preferred button width from label text.
+function Layout.MeasureButtonWidth(text, minW, maxW)
+	minW = minW or BTN_MIN_W
+	maxW = maxW or BTN_MAX_W
+	local w = minW
+	if UIParent and UIParent.CreateFontString then
+		local probe = UIParent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		probe:SetText(text or "")
+		w = math.ceil((probe:GetStringWidth() or 0) + BTN_PAD_X)
+		probe:SetText("")
+		probe:Hide()
+	else
+		-- Offline / no UIParent: approximate 7px per char + padding
+		w = math.ceil(#(text or "") * 7 + BTN_PAD_X)
+	end
+	if w < minW then
+		w = minW
+	end
+	if w > maxW then
+		w = maxW
+	end
+	return w
+end
+
+local function shortenLabel(text, maxW)
+	local full = text or ""
+	local w = Layout.MeasureButtonWidth(full, BTN_MIN_W, 1000)
+	if w <= maxW then
+		return full, false
+	end
+	local s = full
+	while #s > 3 do
+		s = s:sub(1, #s - 1)
+		local candidate = s .. "…"
+		if Layout.MeasureButtonWidth(candidate, BTN_MIN_W, 1000) <= maxW then
+			return candidate, true
+		end
+	end
+	return "…", true
+end
+
 function Layout.AddButtonRow(stack, buttons)
 	Layout.StackEnsureWidth(stack)
-	local row = CreateFrame("Frame", nil, stack.parent)
-	row:SetPoint("TOPLEFT", stack.parent, "TOPLEFT", 0, -stack.y)
-	row:SetSize(stack.width, 26)
+	local wrap = CreateFrame("Frame", nil, stack.parent)
+	wrap:SetPoint("TOPLEFT", stack.parent, "TOPLEFT", 0, -stack.y)
+	wrap:SetWidth(stack.width)
+
+	local rowY = 0
 	local x = 0
+	local currentRow = CreateFrame("Frame", nil, wrap)
+	currentRow:SetPoint("TOPLEFT", 0, 0)
+	currentRow:SetSize(stack.width, BTN_HEIGHT)
+
 	for _, spec in ipairs(buttons or {}) do
-		local btn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-		btn:SetSize(spec.width or 120, 24)
-		btn:SetPoint("LEFT", row, "LEFT", x, 0)
-		btn:SetText(spec.text or "")
+		local fullText = spec.text or ""
+		local tip = spec.tooltip or fullText
+		local minW = spec.minWidth or BTN_MIN_W
+		local maxW = spec.maxWidth or BTN_MAX_W
+		local avail = stack.width - x
+		local natural = Layout.MeasureButtonWidth(fullText, minW, maxW)
+		if x > 0 and (natural + BTN_GAP) > avail and avail < (minW + BTN_GAP) then
+			rowY = rowY + BTN_HEIGHT + 6
+			x = 0
+			avail = stack.width
+			currentRow = CreateFrame("Frame", nil, wrap)
+			currentRow:SetPoint("TOPLEFT", 0, -rowY)
+			currentRow:SetSize(stack.width, BTN_HEIGHT)
+		end
+		local useW = natural
+		if useW > avail and avail >= minW then
+			useW = avail
+		elseif useW > stack.width then
+			useW = stack.width
+		end
+		local label, truncated = shortenLabel(fullText, useW)
+		local btn = CreateFrame("Button", nil, currentRow, "UIPanelButtonTemplate")
+		btn:SetSize(useW, BTN_HEIGHT)
+		btn:SetPoint("LEFT", currentRow, "LEFT", x, 0)
+		btn:SetText(label)
+		if truncated or tip ~= label then
+			btn:SetScript("OnEnter", function(self)
+				GameTooltip:SetOwner(self, "ANCHOR_TOP")
+				GameTooltip:SetText(tip, 1, 1, 1, 1, true)
+				GameTooltip:Show()
+			end)
+			btn:SetScript("OnLeave", function()
+				GameTooltip:Hide()
+			end)
+		end
 		if spec.onClick then
 			btn:SetScript("OnClick", spec.onClick)
 		end
-		x = x + (spec.width or 120) + 6
+		x = x + useW + BTN_GAP
 	end
-	stack.y = stack.y + 30
-	return row
+
+	local totalH = rowY + BTN_HEIGHT
+	wrap:SetHeight(totalH)
+	stack.y = stack.y + totalH + 6
+	return wrap
 end
 
 function Layout.AddMetricGrid(stack, metrics, cols)

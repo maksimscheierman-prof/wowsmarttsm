@@ -20,8 +20,10 @@ function Health.GetReport()
 	local Freshness = Smart:GetModule("Freshness")
 	local Commands = Smart:GetModule("Commands")
 	local Coverage = Smart:GetModule("Coverage")
+	local ItemAPI = Smart:GetModule("ItemAPI")
 
 	local detect = Detect and Detect.GetStatus and Detect.GetStatus() or {}
+	local itemCaps = ItemAPI and ItemAPI.GetCapabilities and ItemAPI.GetCapabilities() or {}
 	local loggerInit = Logger and Logger.GetInitStatus and Logger.GetInitStatus() or {}
 	local meta = ScanService and ScanService.GetLastMeta and ScanService.GetLastMeta() or {}
 	local evalState = ScanService and ScanService.GetEvalStatus and ScanService.GetEvalStatus() or {}
@@ -67,5 +69,8 @@ function Health.GetReport()
 		regionDataAge = regionTs,
 		coverage = cov,
 		autoEval = auto,
+		itemApi = itemCaps.preferredInfoAPI,
+		bagApi = itemCaps.preferredBagAPI,
+		itemCaps = itemCaps,
 	}
 end

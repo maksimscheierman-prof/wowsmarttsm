@@ -1,4 +1,5 @@
 local Smart = WoWSmartTSM
+local ItemAPI = Smart:Module("ItemAPI")
 local I = Smart:Module("ItemUtil")
 
 ---Normalize to a stable item identity string.
@@ -9,7 +10,7 @@ function I.GetItemString(itemLinkOrString)
 	if type(itemLinkOrString) == "string" and itemLinkOrString:match("^i:") then
 		return itemLinkOrString
 	end
-	local id = itemLinkOrString:match("item:(%d+)")
+	local id = tostring(itemLinkOrString):match("item:(%d+)")
 	if id then
 		return "i:" .. id
 	end
@@ -27,21 +28,41 @@ function I.GetItemID(itemString)
 	return id and tonumber(id) or nil
 end
 
+---Forever-safe basic info (delegates to ItemAPI). Never calls bare GetItemInfo.
 function I.GetBasicInfo(itemLink)
-	local name, link, quality, itemLevel, reqLevel, className, subclassName, maxStack, equipSlot, texture, vendorPrice =
-		GetItemInfo(itemLink)
+	local info = ItemAPI.GetInfo(itemLink)
+	if not info then
+		return {
+			name = nil,
+			link = itemLink,
+			quality = nil,
+			itemLevel = nil,
+			reqLevel = nil,
+			className = nil,
+			subclassName = nil,
+			maxStack = nil,
+			equipSlot = nil,
+			texture = nil,
+			vendorSell = 0,
+			complete = false,
+			pending = true,
+		}
+	end
 	return {
-		name = name,
-		link = link,
-		quality = quality,
-		itemLevel = itemLevel,
-		reqLevel = reqLevel,
-		className = className,
-		subclassName = subclassName,
-		maxStack = maxStack,
-		equipSlot = equipSlot,
-		texture = texture,
-		vendorSell = vendorPrice or 0,
+		name = info.name,
+		link = info.link or itemLink,
+		quality = info.quality,
+		itemLevel = info.itemLevel,
+		reqLevel = info.minLevel,
+		className = info.className,
+		subclassName = info.subclassName,
+		maxStack = info.maxStack,
+		equipSlot = info.equipSlot,
+		texture = info.texture,
+		vendorSell = info.vendorSell or 0,
+		complete = info.complete and true or false,
+		pending = info.pending and true or false,
+		source = info.source,
 	}
 end
 
@@ -49,12 +70,10 @@ function I.IsEquipmentSlot(equipSlot)
 	if not equipSlot or equipSlot == "" then
 		return false
 	end
-	-- INVTYPE_* empty for non-equip
 	return equipSlot ~= "" and equipSlot ~= "INVTYPE_NON_EQUIP_IGNORE"
 end
 
 function I.IsRecipeClass(className, subclassName, name)
-	-- Prefer class metadata over name; name is fallback only
 	if className then
 		local lower = className:lower()
 		if lower:find("recipe") or lower:find("rezept") then

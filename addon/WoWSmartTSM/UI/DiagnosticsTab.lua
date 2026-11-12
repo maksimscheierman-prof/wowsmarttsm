@@ -31,6 +31,8 @@ function DiagnosticsTab.Render(parent)
 		{ "Logger OK", tostring(h.loggerOk) .. (init.error and (" (" .. init.error .. ")") or ""), h.loggerOk },
 		{ "Slash /smarttsm", tostring(h.slashOk), h.slashOk },
 		{ "TSM API", tostring(h.tsmApi), h.tsmApi },
+		{ "Item-API", tostring(h.itemApi or "?"), h.itemApi ~= nil and h.itemApi ~= "NONE" },
+		{ "Bag-API", tostring(h.bagApi or "?"), h.bagApi ~= nil and h.bagApi ~= "NONE" },
 		{ "AppHelper", tostring(h.appHelper), h.appHelper },
 		{ "DataTap", tostring(h.dataTap), h.dataTap },
 		{ "Inventarbewertung", h.evalLabel or "—", h.evalStatus == "OK" or h.evalStatus == "NO_ITEMS" },

@@ -79,12 +79,59 @@ function BulkReview.Render(parent, opts)
 	end)
 
 	local stack = Layout.BodyStack(root)
+	local eval = ScanService.GetEvalStatus and ScanService.GetEvalStatus() or {}
+	local failed = eval.status == "FAILED"
+
+	if failed then
+		Layout.AddText(
+			stack,
+			"Inventarbewertung fehlgeschlagen – Details unter Diagnose.",
+			"GameFontNormal",
+			Theme.COLORS.bad
+		)
+		if eval.error then
+			Layout.AddText(stack, tostring(eval.error), "GameFontHighlightSmall", Theme.COLORS.muted)
+		end
+		Layout.AddGap(stack, 8)
+		Layout.AddButtonRow(stack, {
+			{
+				text = "Erneut bewerten",
+				tooltip = "Taschen erneut anhand TSM-Daten bewerten (kein AH-Scan)",
+				onClick = function()
+					ScanService.ReevaluateBags({ reason = "ui_retry_after_fail" })
+					BulkReview.Render(parent, opts)
+				end,
+			},
+			{
+				text = L("DIAGNOSTICS"),
+				tooltip = "Diagnose-Tab öffnen",
+				onClick = function()
+					local MainFrame = Smart:GetModule("MainFrame")
+					if MainFrame and MainFrame.SelectTab then
+						MainFrame.SelectTab("Diagnostics")
+					end
+				end,
+			},
+		})
+		Layout.FinishStack(stack)
+		Layout.FooterText(root.footer, eval.label or "FAILED")
+		return
+	end
+
 	Layout.AddText(
 		stack,
 		string.format("%d Einträge — Klick auf Zeile wählt aus; Shift+Übernehmen bestätigt", #shown),
 		"GameFontHighlightSmall",
 		Theme.COLORS.muted
 	)
+	if eval.status == "NEVER_RUN" then
+		Layout.AddText(
+			stack,
+			"Noch keine Bewertung durchgeführt — Button „Neu bewerten“ oder auf AutoEval warten.",
+			"GameFontHighlightSmall",
+			Theme.COLORS.warn
+		)
+	end
 	Layout.AddGap(stack, 4)
 
 	local columns = {
@@ -155,7 +202,7 @@ function BulkReview.Render(parent, opts)
 	Layout.AddButtonRow(stack, {
 		{
 			text = "Alle wählen",
-			width = 110,
+			tooltip = "Alle sichtbaren Zeilen auswählen",
 			onClick = function()
 				for _, d in ipairs(shown) do
 					if d.itemString then
@@ -167,7 +214,7 @@ function BulkReview.Render(parent, opts)
 		},
 		{
 			text = "Keine",
-			width = 80,
+			tooltip = "Auswahl leeren",
 			onClick = function()
 				wipe(private.selected)
 				BulkReview.Render(parent, opts)
@@ -175,14 +222,15 @@ function BulkReview.Render(parent, opts)
 		},
 		{
 			text = L("APPLY") .. " (Shift)",
-			width = 140,
+			tooltip = L("APPLY") .. " — nur mit gehaltener Shift-Taste bestätigen",
+			maxWidth = 200,
 			onClick = function()
 				BulkReview.ConfirmApply(shown)
 			end,
 		},
 		{
-			text = L("UNDO"),
-			width = 160,
+			text = "Rückgängig",
+			tooltip = L("UNDO"),
 			onClick = function()
 				Undo.UndoLast()
 			end,

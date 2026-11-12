@@ -8,6 +8,7 @@ local Version = Smart:Module("Version")
 local AutoEval = Smart:Module("AutoEval")
 local PostingCache = Smart:Module("PostingCache")
 local Prices = Smart:Module("Prices")
+local ItemAPI = Smart:Module("ItemAPI")
 
 local private = {
 	loaded = false,
@@ -73,6 +74,12 @@ local function onLoaded()
 	end
 
 	pcall(Logger.InstallErrorHandler)
+	pcall(ItemAPI.Init)
+	ItemAPI.SetPendingResolvedHandler(function(itemId)
+		if AutoEval and AutoEval.Request then
+			AutoEval.Request("item_info_received", { "item:" .. tostring(itemId) })
+		end
+	end)
 	pcall(Commands.Register)
 	pcall(UI.Init)
 	pcall(PostingCache.Init)

@@ -3,6 +3,7 @@ local Engine = Smart:Module("Engine")
 local Prices = Smart:Module("Prices")
 local Groups = Smart:Module("Groups")
 local ItemUtil = Smart:Module("ItemUtil")
+local ItemAPI = Smart:Module("ItemAPI")
 local Logger = Smart:Module("Logger")
 local Time = Smart:Module("TimeUtil")
 local PostingCache = Smart:Module("PostingCache")
@@ -23,88 +24,96 @@ local private = {
 	},
 }
 
-local function getBagSlots(bag)
-	if C_Container and C_Container.GetContainerNumSlots then
-		return C_Container.GetContainerNumSlots(bag) or 0
+local function buildRawFromSlot(bag, slot)
+	local slotInfo = ItemAPI.GetBagSlot(bag, slot)
+	if not slotInfo or not slotInfo.link then
+		return nil
 	end
-	if GetContainerNumSlots then
-		return GetContainerNumSlots(bag) or 0
-	end
-	return 0
-end
+	local link = slotInfo.link
+	local count = slotInfo.count or 1
+	local itemString = Prices.ToItemString(link) or ItemUtil.GetItemString(link)
+	local info = ItemAPI.GetInfo(link)
+	local name = info and info.name or nil
+	local quality = (info and info.quality) or slotInfo.quality
+	local className = info and info.className or nil
+	local subclassName = info and info.subclassName or nil
+	local equipSlot = info and info.equipSlot or nil
+	local vendorFallback = (info and info.vendorSell) or 0
+	local metaIncomplete = not (info and info.complete)
 
-local function getSlotLinkCount(bag, slot)
-	if C_Container and C_Container.GetContainerItemInfo then
-		local info = C_Container.GetContainerItemInfo(bag, slot)
-		if info then
-			return info.hyperlink or (info.itemID and ("item:" .. info.itemID)), info.stackCount or 1
-		end
-	end
-	if GetContainerItemLink then
-		local link = GetContainerItemLink(bag, slot)
-		local _, count = GetContainerItemInfo(bag, slot)
-		return link, count or 1
-	end
-	return nil, 0
+	-- Prefer TSM VendorSell; client vendor is fallback only
+	local prices = Prices.Collect(itemString)
+	local currentGroup = Groups.GetPathByItem(itemString)
+	local opMin = Prices.GetOperationMin(itemString)
+	local opNormal = Prices.GetOperationNormal(itemString)
+
+	local raw = {
+		itemString = itemString,
+		itemId = slotInfo.itemId or ItemUtil.GetItemID(itemString),
+		link = link,
+		name = name or (itemString and ("#" .. tostring(ItemUtil.GetItemID(itemString))) or "?"),
+		quality = quality,
+		className = className,
+		subclassName = subclassName,
+		equipSlot = equipSlot,
+		isEquipment = ItemUtil.IsEquipmentSlot(equipSlot),
+		isRecipe = ItemUtil.IsRecipeClass(className, subclassName, name),
+		isBound = slotInfo.isBound and true or false,
+		isLocked = slotInfo.isLocked and true or false,
+		metaIncomplete = metaIncomplete,
+		vendorSell = prices.vendorSell or vendorFallback or 0,
+		dbMarket = prices.dbMarket,
+		dbMinBuyout = prices.dbMinBuyout,
+		dbRegionMarketAvg = prices.dbRegionMarketAvg,
+		dbRegionSaleRate = prices.dbRegionSaleRate,
+		dbRegionSoldPerDay = prices.dbRegionSoldPerDay,
+		craftingValue = prices.craftingValue,
+		numAuctions = prices.numAuctions,
+		minBuyout = prices.dbMinBuyout,
+		marketValue = prices.dbMarket,
+		regionMarket = prices.dbRegionMarketAvg,
+		saleRate = prices.dbRegionSaleRate,
+		soldPerDay = prices.dbRegionSoldPerDay,
+		quantity = count,
+		currentGroup = currentGroup,
+		operationMinPrice = opMin,
+		operationNormalPrice = opNormal,
+		dataTimestamp = prices.dataTimestamp or Time.Now(),
+		sourceMeta = prices.sourceMeta,
+		freshness = prices.freshness,
+		needsLiveCompetition = prices.needsLiveCompetition,
+		fromAuctionDB = true,
+		bag = bag,
+		slot = slot,
+		itemInfoSource = info and info.source or "none",
+	}
+	PostingCache.ApplyToRaw(raw)
+	return raw
 end
 
 local function iterBags()
 	local items = {}
+	local skippedSlots = 0
+	local pendingMeta = 0
 	local maxBag = NUM_BAG_SLOTS or 4
 	for bag = 0, maxBag do
-		local slots = getBagSlots(bag)
+		local slots = ItemAPI.GetBagNumSlots(bag)
 		for slot = 1, slots do
-			local link, count = getSlotLinkCount(bag, slot)
-			if link then
-				local itemString = Prices.ToItemString(link) or ItemUtil.GetItemString(link)
-				local name, _, quality, _, _, className, subclassName, _, equipSlot = GetItemInfo(link)
-				local vendorFallback = select(11, GetItemInfo(link)) or 0
-				local prices = Prices.Collect(itemString)
-				local currentGroup = Groups.GetPathByItem(itemString)
-				local opMin = Prices.GetOperationMin(itemString)
-				local opNormal = Prices.GetOperationNormal(itemString)
-
-				local raw = {
-					itemString = itemString,
-					link = link,
-					name = name,
-					quality = quality,
-					className = className,
-					subclassName = subclassName,
-					equipSlot = equipSlot,
-					isEquipment = ItemUtil.IsEquipmentSlot(equipSlot),
-					isRecipe = ItemUtil.IsRecipeClass(className, subclassName, name),
-					vendorSell = prices.vendorSell or vendorFallback or 0,
-					dbMarket = prices.dbMarket,
-					dbMinBuyout = prices.dbMinBuyout,
-					dbRegionMarketAvg = prices.dbRegionMarketAvg,
-					dbRegionSaleRate = prices.dbRegionSaleRate,
-					dbRegionSoldPerDay = prices.dbRegionSoldPerDay,
-					craftingValue = prices.craftingValue,
-					numAuctions = prices.numAuctions,
-					minBuyout = prices.dbMinBuyout,
-					marketValue = prices.dbMarket,
-					regionMarket = prices.dbRegionMarketAvg,
-					saleRate = prices.dbRegionSaleRate,
-					soldPerDay = prices.dbRegionSoldPerDay,
-					quantity = count,
-					currentGroup = currentGroup,
-					operationMinPrice = opMin,
-					operationNormalPrice = opNormal,
-					dataTimestamp = prices.dataTimestamp or Time.Now(),
-					sourceMeta = prices.sourceMeta,
-					freshness = prices.freshness,
-					needsLiveCompetition = prices.needsLiveCompetition,
-					fromAuctionDB = true,
-					bag = bag,
-					slot = slot,
-				}
-				PostingCache.ApplyToRaw(raw)
-				items[#items + 1] = raw
+			local ok, rawOrErr = pcall(buildRawFromSlot, bag, slot)
+			if not ok then
+				skippedSlots = skippedSlots + 1
+				Logger.Warning("CLASSIFY_FAILED", "ScanService", "iterBags", tostring(rawOrErr), {
+					state = { bag = bag, slot = slot },
+				})
+			elseif rawOrErr then
+				if rawOrErr.metaIncomplete then
+					pendingMeta = pendingMeta + 1
+				end
+				items[#items + 1] = rawOrErr
 			end
 		end
 	end
-	return items
+	return items, skippedSlots, pendingMeta
 end
 
 ---Reevaluate bags using existing TSM AuctionDB / AppHelper data via TSM_API.
@@ -112,9 +121,19 @@ end
 function ScanService.ReevaluateBags(opts)
 	opts = opts or {}
 	local reason = opts.reason or "manual"
-	local ok, items = pcall(iterBags)
-	if not ok then
-		Logger.Error("CLASSIFY_FAILED", "ScanService", "ReevaluateBags", tostring(items))
+	ItemAPI.ProbeCapabilities()
+
+	local pack = { ok = false }
+	local okCall, callErr = pcall(function()
+		local items, skippedSlots, pendingMeta = iterBags()
+		pack.ok = true
+		pack.items = items
+		pack.skippedSlots = skippedSlots
+		pack.pendingMeta = pendingMeta
+	end)
+	if not okCall or not pack.ok then
+		local errMsg = tostring(callErr or "iterBags failed")
+		Logger.Error("CLASSIFY_FAILED", "ScanService", "ReevaluateBags", errMsg)
 		private.lastResults = {}
 		private.lastMeta = {
 			at = Time.Now(),
@@ -126,10 +145,13 @@ function ScanService.ReevaluateBags(opts)
 			needsLiveCompetition = 0,
 			incremental = opts.incremental and true or false,
 			status = "FAILED",
-			error = tostring(items),
+			error = errMsg,
 		}
 		return {}
 	end
+	local items = pack.items or {}
+	local skippedSlots = pack.skippedSlots or 0
+	local pendingMeta = pack.pendingMeta or 0
 
 	local decisions = Engine.EvaluateMany(items)
 	local cacheHits, needLive, missingPrices = 0, 0, 0
@@ -152,16 +174,17 @@ function ScanService.ReevaluateBags(opts)
 			d.minBuyout = raw and raw.minBuyout or d.minBuyout
 			d.numAuctions = raw and raw.numAuctions or d.numAuctions
 			d.currentGroup = raw and raw.currentGroup
+			d.metaIncomplete = raw and raw.metaIncomplete
 			PostingCache.RememberDecision(d)
 		end
 	end
 
 	local status
-	if not Prices.IsApiReady() then
+	if not Prices.IsApiReady() and #decisions == 0 then
 		status = "TSM_DATA_MISSING"
 	elseif #decisions == 0 then
 		status = "NO_ITEMS"
-	elseif missingPrices == #decisions then
+	elseif missingPrices == #decisions and not Prices.IsApiReady() then
 		status = "TSM_DATA_MISSING"
 	else
 		status = "OK"
@@ -180,6 +203,10 @@ function ScanService.ReevaluateBags(opts)
 		status = status,
 		error = nil,
 		missingPriceStacks = missingPrices,
+		skippedSlots = skippedSlots,
+		pendingMeta = pendingMeta,
+		itemApi = ItemAPI.GetCapabilities().preferredInfoAPI,
+		bagApi = ItemAPI.GetCapabilities().preferredBagAPI,
 	}
 	if WoWSmartTSM_DB then
 		WoWSmartTSM_DB.lastScan = {
@@ -196,12 +223,13 @@ function ScanService.ReevaluateBags(opts)
 		"ScanService",
 		"ReevaluateBags",
 		string.format(
-			"Reevaluated %d stacks via TSM data (reason=%s, status=%s, ahScan=false, cacheHits=%d, needLiveCompetition=%d)",
+			"Reevaluated %d stacks via TSM data (reason=%s, status=%s, ahScan=false, pendingMeta=%d, skipped=%d, itemApi=%s)",
 			#decisions,
 			reason,
 			status,
-			cacheHits,
-			needLive
+			pendingMeta,
+			skippedSlots,
+			tostring(private.lastMeta.itemApi)
 		)
 	)
 	return decisions
@@ -223,7 +251,7 @@ end
 local EVAL_LABELS = {
 	NEVER_RUN = "Noch keine Bewertung durchgeführt",
 	NO_ITEMS = "Keine Items in den Taschen gefunden",
-	FAILED = "Bewertung fehlgeschlagen",
+	FAILED = "Inventarbewertung fehlgeschlagen",
 	TSM_DATA_MISSING = "TSM-Daten fehlen oder API nicht bereit",
 	OK = "Erfolgreich bewertet",
 }
@@ -239,8 +267,11 @@ function ScanService.GetEvalStatus()
 		else
 			label = string.format("Erfolgreich bewertet (%d Stacks)", meta.count or 0)
 		end
+		if (meta.pendingMeta or 0) > 0 then
+			label = label .. string.format(" — %d Items mit unvollständigen Metadaten", meta.pendingMeta)
+		end
 	elseif status == "FAILED" and meta.error then
-		label = "Bewertung fehlgeschlagen: " .. tostring(meta.error)
+		label = "Inventarbewertung fehlgeschlagen: " .. tostring(meta.error)
 	end
 	return {
 		status = status,
@@ -249,6 +280,7 @@ function ScanService.GetEvalStatus()
 		reason = meta.reason,
 		count = meta.count or 0,
 		error = meta.error,
+		pendingMeta = meta.pendingMeta or 0,
 	}
 end
 

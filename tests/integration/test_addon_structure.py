@@ -20,6 +20,7 @@ REQUIRED = [
     "TSM/Prices.lua",
     "TSM/Freshness.lua",
     "TSM/PostingCache.lua",
+    "Util/ItemAPI.lua",
     "UI/Layout.lua",
     "UI/MainFrame.lua",
     "UI/Dashboard.lua",

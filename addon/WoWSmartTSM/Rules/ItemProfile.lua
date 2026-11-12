@@ -82,7 +82,8 @@ function ItemProfile.Build(raw)
 		isQuestItem = raw.isQuestItem,
 		isLocked = raw.isLocked,
 		isProtectedFlag = raw.isProtectedFlag,
-		unknownIdentity = itemString == nil,
+		-- Incomplete client metadata must not unlock blind vendor sells
+		unknownIdentity = itemString == nil or raw.metaIncomplete == true,
 		vendorSell = vendorSell,
 		marketValue = market,
 		minBuyout = minBuyout,

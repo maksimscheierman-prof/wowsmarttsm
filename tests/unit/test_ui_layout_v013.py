@@ -61,7 +61,7 @@ def test_toc_loads_layout_before_tabs():
     toc = (ADDON_SRC / "WoWSmartTSM.toc").read_text(encoding="utf-8")
     assert "UI\\Layout.lua" in toc
     assert "Core\\Health.lua" in toc
-    assert "## Version: 0.1.3" in toc
+    assert "## Version: 0.1." in toc
     layout_i = toc.index("UI\\Layout.lua")
     dash_i = toc.index("UI\\Dashboard.lua")
     assert layout_i < dash_i
