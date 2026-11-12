@@ -31,11 +31,13 @@ C.STRATEGIES = {
 
 -- Inventory / transport action (independent of strategy)
 C.ACTIONS = {
-	MAIL_TO_BANK = "MAIL_TO_BANK",
+	MAIL_TO_BANK = "MAIL_TO_BANK", -- MAIN → send to bank for AH/hold
+	POST_AH = "POST_AH", -- BANK → prepare auction posting
 	VENDOR = "VENDOR",
 	KEEP = "KEEP",
 	IGNORE = "IGNORE",
-	HOLD_AT_BANK = "HOLD_AT_BANK",
+	HOLD = "HOLD", -- BANK → hold in bank storage
+	HOLD_AT_BANK = "HOLD_AT_BANK", -- MAIN → mail hold items to bank
 	MANUAL_REVIEW = "MANUAL_REVIEW",
 }
 

@@ -490,9 +490,15 @@ function Layout.AddTable(stack, columns, rows, opts)
 			end
 			cx = cx + (col.width or 80)
 		end
-		local needMouse = opts.onEnter or opts.onLeave or opts.onClick or #cellTips > 0
+		local needMouse = opts.onEnter or opts.onLeave or opts.onClick or opts.onRightClick or #cellTips > 0
 		if needMouse then
 			line:EnableMouse(true)
+			if opts.isSelected and opts.isSelected(row) then
+				local hl = line:CreateTexture(nil, "BACKGROUND")
+				hl:SetAllPoints(line)
+				hl:SetTexture("Interface\\Buttons\\WHITE8X8")
+				hl:SetVertexColor(0.2, 0.35, 0.4, 0.5)
+			end
 			line:SetScript("OnEnter", function()
 				if opts.onEnter then
 					opts.onEnter(row, i, line)
@@ -511,10 +517,12 @@ function Layout.AddTable(stack, columns, rows, opts)
 					GameTooltip:Hide()
 				end
 			end)
-			if opts.onClick then
+			if opts.onClick or opts.onRightClick then
 				line:SetScript("OnMouseUp", function(_, button)
-					if button == "LeftButton" then
-						opts.onClick(row, i, line)
+					if button == "LeftButton" and opts.onClick then
+						opts.onClick(row, i, line, IsShiftKeyDown and IsShiftKeyDown(), IsControlKeyDown and IsControlKeyDown())
+					elseif button == "RightButton" and opts.onRightClick then
+						opts.onRightClick(row, i, line)
 					end
 				end)
 			end

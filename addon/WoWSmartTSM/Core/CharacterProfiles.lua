@@ -3,36 +3,37 @@ local C = Smart:Module("Constants")
 local Logger = Smart:Module("Logger")
 local CharacterProfiles = Smart:Module("CharacterProfiles")
 
-local private = {
-	currentKey = nil,
-}
-
 local function realmName()
-	local r = GetRealmName and GetRealmName() or "UnknownRealm"
-	return tostring(r)
+	local Resolver = Smart:GetModule("CharacterResolver")
+	if Resolver and Resolver.MakeKey then
+		local snap = Resolver.ParseKey and Resolver.ParseKey(Resolver.MakeKey())
+		return snap and snap.realm or (GetRealmName and GetRealmName() or "UnknownRealm")
+	end
+	return tostring(GetRealmName and GetRealmName() or "UnknownRealm")
 end
 
 local function playerName()
-	local n = UnitName and UnitName("player") or "Unknown"
-	return tostring(n)
+	return tostring(UnitName and UnitName("player") or "Unknown")
 end
 
 local function playerFaction()
-	local f = UnitFactionGroup and UnitFactionGroup("player") or "Unknown"
-	return tostring(f)
+	return tostring(UnitFactionGroup and UnitFactionGroup("player") or "Unknown")
 end
 
----Stable character key: Name-Realm|Faction
 function CharacterProfiles.MakeKey(name, realm, faction)
-	name = name or playerName()
-	realm = realm or realmName()
-	faction = faction or playerFaction()
-	return string.format("%s-%s|%s", name, realm, faction)
+	local Resolver = Smart:GetModule("CharacterResolver")
+	if Resolver and Resolver.MakeKey then
+		return Resolver.MakeKey(name, realm, faction)
+	end
+	return string.format("%s-%s|%s", name or playerName(), realm or realmName(), faction or playerFaction())
 end
 
 function CharacterProfiles.GetCurrentKey()
-	private.currentKey = CharacterProfiles.MakeKey()
-	return private.currentKey
+	local Resolver = Smart:GetModule("CharacterResolver")
+	if Resolver and Resolver.GetCurrentKey then
+		return Resolver.GetCurrentKey()
+	end
+	return CharacterProfiles.MakeKey()
 end
 
 local function ensureStore()
@@ -42,15 +43,25 @@ local function ensureStore()
 		primaryBankKey = nil,
 		bankKeys = {},
 	}
+	-- Normalize stored primary bank key once
+	local Resolver = Smart:GetModule("CharacterResolver")
+	if Resolver and Resolver.NormalizeKey and WoWSmartTSM_DB.profile.primaryBankKey then
+		local n = Resolver.NormalizeKey(WoWSmartTSM_DB.profile.primaryBankKey)
+		if n and n ~= WoWSmartTSM_DB.profile.primaryBankKey then
+			WoWSmartTSM_DB.profile.primaryBankKey = n
+		end
+	end
 	return WoWSmartTSM_DB
 end
 
 local function defaultChar(key)
+	local Resolver = Smart:GetModule("CharacterResolver")
+	local parsed = Resolver and Resolver.ParseKey and Resolver.ParseKey(key)
 	return {
 		key = key,
-		name = playerName(),
-		realm = realmName(),
-		faction = playerFaction(),
+		name = (parsed and parsed.name) or playerName(),
+		realm = (parsed and parsed.realm) or realmName(),
+		faction = (parsed and parsed.faction) or playerFaction(),
 		role = C.ROLES.MAIN,
 		autoEval = true,
 		protectConsumables = true,
@@ -67,16 +78,34 @@ end
 function CharacterProfiles.EnsureCurrent()
 	local db = ensureStore()
 	local key = CharacterProfiles.GetCurrentKey()
+	local Resolver = Smart:GetModule("CharacterResolver")
+	local existing = Resolver and Resolver.FindCharacter and select(1, Resolver.FindCharacter(key))
+	if existing then
+		-- Migrate to canonical key if needed
+		local _, storedKey = Resolver.FindCharacter(key)
+		if storedKey and storedKey ~= key then
+			db.characters[key] = existing
+			existing.key = key
+			-- keep old key as alias table entry pointing same data is messy; copy
+		end
+	end
 	if not db.characters[key] then
 		db.characters[key] = defaultChar(key)
 		Logger.Info("UNKNOWN", "CharacterProfiles", "EnsureCurrent", "Created profile for " .. key)
 	else
-		-- refresh identity fields
 		local ch = db.characters[key]
 		ch.name = playerName()
 		ch.realm = realmName()
 		ch.faction = playerFaction()
 		ch.key = key
+	end
+	-- If this login is the primary bank, ensure role is BANK
+	local bankKey = CharacterProfiles.GetPrimaryBankKey()
+	if bankKey and Resolver and Resolver.KeysEqual and Resolver.KeysEqual(bankKey, key) then
+		if db.characters[key].role ~= C.ROLES.BANK then
+			db.characters[key].role = C.ROLES.BANK
+			Logger.Info("CHARACTER_ROLE_RESOLVED", "CharacterProfiles", "EnsureCurrent", "Forced BANK role for primary bank login")
+		end
 	end
 	return db.characters[key]
 end
@@ -84,6 +113,13 @@ end
 function CharacterProfiles.Get(key)
 	local db = ensureStore()
 	key = key or CharacterProfiles.GetCurrentKey()
+	local Resolver = Smart:GetModule("CharacterResolver")
+	if Resolver and Resolver.FindCharacter then
+		local ch = Resolver.FindCharacter(key)
+		if ch then
+			return ch
+		end
+	end
 	return db.characters[key]
 end
 
@@ -92,6 +128,10 @@ function CharacterProfiles.GetCurrent()
 end
 
 function CharacterProfiles.GetRole(key)
+	local Resolver = Smart:GetModule("CharacterResolver")
+	if Resolver and Resolver.GetEffectiveRole then
+		return Resolver.GetEffectiveRole(key or CharacterProfiles.GetCurrentKey())
+	end
 	local ch = CharacterProfiles.Get(key)
 	return (ch and ch.role) or C.ROLES.MAIN
 end
@@ -99,6 +139,10 @@ end
 function CharacterProfiles.SetRole(key, role)
 	local db = ensureStore()
 	key = key or CharacterProfiles.GetCurrentKey()
+	local Resolver = Smart:GetModule("CharacterResolver")
+	if Resolver and Resolver.NormalizeKey then
+		key = Resolver.NormalizeKey(key) or key
+	end
 	if not db.characters[key] then
 		db.characters[key] = defaultChar(key)
 	end
@@ -107,6 +151,12 @@ function CharacterProfiles.SetRole(key, role)
 		return false
 	end
 	db.characters[key].role = role
+	if Resolver and Resolver.Invalidate then
+		Resolver.Invalidate()
+	end
+	if Resolver and Resolver.NotifyProfileChanged then
+		Resolver.NotifyProfileChanged("role_changed")
+	end
 	return true
 end
 
@@ -123,51 +173,82 @@ function CharacterProfiles.List()
 end
 
 function CharacterProfiles.GetPrimaryBankKey()
+	local Resolver = Smart:GetModule("CharacterResolver")
+	if Resolver and Resolver.GetPrimaryBankKey then
+		return Resolver.GetPrimaryBankKey()
+	end
 	local db = ensureStore()
 	return db.profile.primaryBankKey
 end
 
 function CharacterProfiles.SetPrimaryBankKey(key)
 	local db = ensureStore()
+	local Resolver = Smart:GetModule("CharacterResolver")
 	if key == nil or key == "" then
 		db.profile.primaryBankKey = nil
+		if Resolver and Resolver.NotifyProfileChanged then
+			Resolver.NotifyProfileChanged("bank_cleared")
+		end
 		return true
 	end
-	-- Allow setting a bank key even if that character hasn't logged in yet (typed name-realm|faction)
+	if Resolver and Resolver.NormalizeKey then
+		key = Resolver.NormalizeKey(key) or key
+	end
 	db.profile.primaryBankKey = key
 	db.profile.bankKeys = db.profile.bankKeys or {}
 	db.profile.bankKeys[key] = true
-	if db.characters[key] then
-		db.characters[key].role = C.ROLES.BANK
+	if not db.characters[key] then
+		-- Create placeholder so role can stick
+		db.characters[key] = defaultChar(key)
 	end
-	Logger.Info("UNKNOWN", "CharacterProfiles", "SetPrimaryBankKey", "Primary bank=" .. tostring(key))
+	db.characters[key].role = C.ROLES.BANK
+	Logger.Info("BANK_CHARACTER_RESOLVED", "CharacterProfiles", "SetPrimaryBankKey", "Primary bank=" .. tostring(key))
+	if Resolver and Resolver.NotifyProfileChanged then
+		Resolver.NotifyProfileChanged("bank_changed")
+	end
 	return true
 end
 
 function CharacterProfiles.IsBankConfigured()
+	local Resolver = Smart:GetModule("CharacterResolver")
+	if Resolver and Resolver.IsBankConfigured then
+		return Resolver.IsBankConfigured()
+	end
 	local key = CharacterProfiles.GetPrimaryBankKey()
 	return key ~= nil and key ~= ""
 end
 
-function CharacterProfiles.GetPrimaryBankDisplay()
-	local key = CharacterProfiles.GetPrimaryBankKey()
-	if not key then
-		return nil
+function CharacterProfiles.CanMailToBank()
+	local Resolver = Smart:GetModule("CharacterResolver")
+	if Resolver and Resolver.CanMailToBank then
+		return Resolver.CanMailToBank()
 	end
-	local name = key:match("^(.-)%|") or key
-	return name
+	return CharacterProfiles.IsBankConfigured(), nil
 end
 
----Mail recipient name only (Name part before -Realm)
-function CharacterProfiles.GetMailRecipientName()
+function CharacterProfiles.GetPrimaryBankDisplay()
+	local Resolver = Smart:GetModule("CharacterResolver")
+	if Resolver and Resolver.GetPrimaryBankDisplay then
+		return Resolver.GetPrimaryBankDisplay()
+	end
 	local key = CharacterProfiles.GetPrimaryBankKey()
 	if not key then
 		return nil
 	end
-	-- key = Name-Realm|Faction
+	return key:match("^(.-)%|") or key
+end
+
+function CharacterProfiles.GetMailRecipientName()
+	local Resolver = Smart:GetModule("CharacterResolver")
+	if Resolver and Resolver.GetMailRecipientName then
+		return Resolver.GetMailRecipientName()
+	end
+	local key = CharacterProfiles.GetPrimaryBankKey()
+	if not key then
+		return nil
+	end
 	local nameRealm = key:match("^(.-)%|") or key
-	local name = nameRealm:match("^(.-)%-") or nameRealm
-	return name
+	return nameRealm:match("^(.-)%-") or nameRealm
 end
 
 function CharacterProfiles.SameFactionAsBank()
@@ -190,5 +271,9 @@ function CharacterProfiles.ApplyMainDefaults(ch)
 	ch.autoAhScan = false
 	ch.autoMailWithoutConfirm = false
 	ch.autoVendorWithoutConfirm = false
+	local Resolver = Smart:GetModule("CharacterResolver")
+	if Resolver and Resolver.Invalidate then
+		Resolver.Invalidate()
+	end
 	return ch
 end

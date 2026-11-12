@@ -170,6 +170,15 @@ C_AddOns = { GetAddOnMetadata = function() return nil end }
 function GetAddOnMetadata() return nil end
 function print(...) end
 function debugstack() return 'stack' end
+function wipe(t)
+  for k in pairs(t) do t[k] = nil end
+  return t
+end
+function IsShiftKeyDown() return false end
+function IsControlKeyDown() return false end
+function UnitName() return 'Azamat' end
+function GetRealmName() return 'CAMWOW EU4 Realm 6 PvP' end
+function UnitFactionGroup() return 'Horde' end
 
 WoWSmartTSM_DB = {
   settings = {
@@ -270,7 +279,11 @@ def stub_tab_dependencies(lua: Any) -> None:
 		end
 		emptyMod('Constants', {
 			ROLES = { MAIN='MAIN', BANK='BANK', MANUAL='MANUAL' },
-			ACTIONS = { MAIL_TO_BANK='MAIL_TO_BANK', HOLD_AT_BANK='HOLD_AT_BANK' },
+			ACTIONS = {
+				MAIL_TO_BANK='MAIL_TO_BANK', HOLD_AT_BANK='HOLD_AT_BANK',
+				POST_AH='POST_AH', HOLD='HOLD', VENDOR='VENDOR', KEEP='KEEP',
+				IGNORE='IGNORE', MANUAL_REVIEW='MANUAL_REVIEW',
+			},
 			STRATEGIES = {
 				VENDOR='VENDOR', HOLD='HOLD', MANUAL_REVIEW='MANUAL_REVIEW',
 				QUICK_SELL='QUICK_SELL', PROFIT_SELL='PROFIT_SELL', RARE_SELL='RARE_SELL',
@@ -396,8 +409,27 @@ MODULE_FOR_TAB = {
 }
 
 
+def load_core_decision_stack(lua: Any) -> None:
+	"""Load CharacterResolver + profiles + ActionDecide + Cleanup helpers."""
+	stub_tab_dependencies(lua)
+	exec_file(lua, ADDON_SRC / "Core" / "CharacterResolver.lua")
+	exec_file(lua, ADDON_SRC / "Core" / "CharacterProfiles.lua")
+	exec_file(lua, ADDON_SRC / "Core" / "CleanupService.lua")
+	exec_file(lua, ADDON_SRC / "Rules" / "ActionDecide.lua")
+	exec_file(lua, ADDON_SRC / "UI" / "ItemExplain.lua")
+
+
 def load_all_tabs(lua: Any) -> None:
 	stub_tab_dependencies(lua)
+	# Prefer real resolver/profiles when testing full UI
+	try:
+		exec_file(lua, ADDON_SRC / "Core" / "CharacterResolver.lua")
+		exec_file(lua, ADDON_SRC / "Core" / "CharacterProfiles.lua")
+		exec_file(lua, ADDON_SRC / "Core" / "CleanupService.lua")
+		exec_file(lua, ADDON_SRC / "UI" / "ItemExplain.lua")
+		exec_file(lua, ADDON_SRC / "UI" / "ItemContextMenu.lua")
+	except Exception:
+		pass
 	exec_file(lua, ADDON_SRC / "UI" / "BulkReview.lua")
 	for tab, fname in TAB_FILES.items():
 		if fname == "BulkReview.lua":

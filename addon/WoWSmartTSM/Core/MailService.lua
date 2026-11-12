@@ -22,11 +22,30 @@ end
 ---Build a send plan. Never marks as sent.
 function MailService.BuildPlan(results)
 	local CP = Smart:GetModule("CharacterProfiles")
-	if not CP.IsBankConfigured() then
-		Logger.Warning("BANK_CHARACTER_NOT_CONFIGURED", "MailService", "BuildPlan", "No primary bank character")
+	local Resolver = Smart:GetModule("CharacterResolver")
+	local role = CP.GetRole and CP.GetRole() or "MAIN"
+	if role == "BANK" then
+		Logger.Warning("INVENTORY_ACTION_BLOCKED", "MailService", "BuildPlan", "BANK role does not mail to self")
 		return {
 			ok = false,
-			code = "BANK_CHARACTER_NOT_CONFIGURED",
+			code = "BANK_IS_SELF",
+			messages = {},
+			candidates = {},
+		}
+	end
+	local mailOk, mailCode = true, nil
+	if CP.CanMailToBank then
+		mailOk, mailCode = CP.CanMailToBank()
+	elseif Resolver and Resolver.CanMailToBank then
+		mailOk, mailCode = Resolver.CanMailToBank()
+	elseif not CP.IsBankConfigured() then
+		mailOk, mailCode = false, "BANK_CHARACTER_NOT_CONFIGURED"
+	end
+	if not mailOk then
+		Logger.Warning(mailCode or "BANK_CHARACTER_NOT_CONFIGURED", "MailService", "BuildPlan", tostring(mailCode))
+		return {
+			ok = false,
+			code = mailCode or "BANK_CHARACTER_NOT_CONFIGURED",
 			messages = {},
 			candidates = {},
 		}

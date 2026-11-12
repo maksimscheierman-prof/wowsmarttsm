@@ -15,10 +15,22 @@ function CharactersTab.Render(parent)
 	Layout.HeaderTitle(root.header, Locale.T("CHARACTERS"))
 	local stack = Layout.BodyStack(root)
 
+	local Resolver = Smart:GetModule("CharacterResolver")
+	local effRole, roleWhy = CP.GetRole()
+	local snap = Resolver and Resolver.Snapshot and Resolver.Snapshot() or {}
 	Layout.AddText(stack, "Aktueller Charakter", "GameFontNormal")
 	Layout.AddText(stack, "Key: " .. tostring(cur.key), "GameFontHighlightSmall", Theme.COLORS.muted)
-	Layout.AddText(stack, "Rolle: " .. tostring(cur.role), "GameFontHighlight")
+	Layout.AddText(stack, "Gespeicherte Rolle: " .. tostring(cur.role), "GameFontHighlight")
+	Layout.AddText(
+		stack,
+		"Effektive Rolle: " .. tostring(effRole) .. " (" .. tostring(roleWhy or snap.roleWhy or "?") .. ")",
+		"GameFontHighlight",
+		Theme.COLORS.accent
+	)
 	Layout.AddText(stack, "Primärer Bankcharakter: " .. tostring(bank or "NICHT GESETZT"), "GameFontHighlight", bank and Theme.COLORS.ok or Theme.COLORS.bad)
+	if snap.canMailToBank == false and snap.mailBlockCode then
+		Layout.AddText(stack, "Mail-Status: " .. tostring(snap.mailBlockCode), "GameFontHighlightSmall", Theme.COLORS.warn)
+	end
 
 	Layout.AddGap(stack, 8)
 	Layout.AddText(stack, "Rolle setzen", "GameFontNormal")

@@ -122,6 +122,18 @@ function ScanService.ReevaluateBags(opts)
 	opts = opts or {}
 	local reason = opts.reason or "manual"
 	ItemAPI.ProbeCapabilities()
+	local Resolver = Smart:GetModule("CharacterResolver")
+	if Resolver and Resolver.Snapshot and Logger and Logger.Info then
+		local snap = Resolver.Snapshot()
+		Logger.Info("CHARACTER_ROLE_RESOLVED", "ScanService", "ReevaluateBags", tostring(snap.role), {
+			state = snap,
+		})
+		if snap.bankKey then
+			Logger.Info("BANK_CHARACTER_RESOLVED", "ScanService", "ReevaluateBags", tostring(snap.bankKey), {
+				state = { canMail = snap.canMailToBank, block = snap.mailBlockCode },
+			})
+		end
+	end
 
 	local pack = { ok = false }
 	local okCall, callErr = pcall(function()
