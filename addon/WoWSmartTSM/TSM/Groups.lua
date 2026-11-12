@@ -22,7 +22,17 @@ end
 
 function Groups.GetPathByItem(itemString)
 	local api = tsmGroupApi()
-	if api and api.GetGroupPath then
+	if not api then
+		return nil
+	end
+	-- VERIFIED TSM_API name: GetGroupPathByItem (App/API.lua)
+	if api.GetGroupPathByItem then
+		local ok, path = pcall(api.GetGroupPathByItem, itemString)
+		if ok then
+			return path
+		end
+	end
+	if api.GetGroupPath then
 		local ok, path = pcall(api.GetGroupPath, itemString)
 		if ok then
 			return path

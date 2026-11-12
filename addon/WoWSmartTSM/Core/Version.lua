@@ -1,8 +1,8 @@
 local Smart = WoWSmartTSM
 local Version = Smart:Module("Version")
 
-Version.STRING = "0.1.0"
-Version.BUILD = 1
+Version.STRING = "0.1.1"
+Version.BUILD = 2
 
 function Version.GetAddonVersion()
 	return Version.STRING

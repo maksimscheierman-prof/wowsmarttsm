@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from paths import ROOT, ADDON_SRC, wow_root, tsm_dir, addon_install_dir, DIAG
+from paths import ROOT, ADDON_SRC, DATATAP_SRC, wow_root, tsm_dir, addon_install_dir, datatap_install_dir, DIAG
 from lua_syntax import check_tree
 
 
@@ -43,7 +43,9 @@ def main():
         "wowExists": wow_root().exists(),
         "tsmExists": tsm_dir().exists(),
         "addonSrcExists": ADDON_SRC.exists(),
+        "dataTapSrcExists": DATATAP_SRC.exists(),
         "addonInstalled": addon_install_dir().exists(),
+        "dataTapInstalled": datatap_install_dir().exists(),
         "wowRunning": wow_running(),
         "git": git_status(),
         "luaSyntax": None,
@@ -65,9 +67,13 @@ def main():
         issues.append({"severity": "CRITICAL", "code": "ADDON_SRC_MISSING", "msg": str(ADDON_SRC)})
     else:
         syn = check_tree(ADDON_SRC)
-        report["luaSyntax"] = {"checked": syn["checked"], "failedCount": len(syn["failed"])}
-        if syn["failed"]:
-            issues.append({"severity": "ERROR", "code": "LUA_SYNTAX", "msg": syn["failed"]})
+        syn2 = check_tree(DATATAP_SRC) if DATATAP_SRC.exists() else {"checked": 0, "failed": []}
+        failed = syn["failed"] + syn2["failed"]
+        report["luaSyntax"] = {"checked": syn["checked"] + syn2["checked"], "failedCount": len(failed)}
+        if failed:
+            issues.append({"severity": "ERROR", "code": "LUA_SYNTAX", "msg": failed})
+    if not report["dataTapInstalled"]:
+        issues.append({"severity": "WARNING", "code": "DATATAP_NOT_INSTALLED", "msg": str(datatap_install_dir())})
 
     if report["wowRunning"]:
         issues.append(

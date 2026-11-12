@@ -5,6 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ADDON_SRC = ROOT / "addon" / "WoWSmartTSM"
+DATATAP_SRC = ROOT / "addon" / "!SmartTSM_DataTap"
 DIAG = ROOT / "diagnostics"
 DIAG_LOCAL = DIAG / "local"
 DEFAULT_WOW = Path(r"E:\WoW\World of Warcraft\_forever_")
@@ -30,6 +31,10 @@ def wow_root() -> Path:
 
 def addon_install_dir() -> Path:
     return wow_root() / "Interface" / "AddOns" / "WoWSmartTSM"
+
+
+def datatap_install_dir() -> Path:
+    return wow_root() / "Interface" / "AddOns" / "!SmartTSM_DataTap"
 
 
 def tsm_dir() -> Path:

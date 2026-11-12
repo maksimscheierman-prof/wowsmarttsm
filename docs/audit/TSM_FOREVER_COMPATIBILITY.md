@@ -127,3 +127,9 @@ Optional future desktop companion. Not required for MVP. Local Forever already u
 ## Conclusion
 
 Companion-addon architecture is feasible on TSM **v4.15.6** under Forever (`wowf`). Proceed without modifying original TSM. Mark deposit/cut rates and live market freshness as PARTIAL and keep them configurable + confidence-scored.
+
+## Follow-up (v0.1.1)
+
+- Price reads go exclusively through **`TSM_API.GetCustomPriceValue`** / **`ToItemString`** (VERIFIED).
+- Freshness: AppHelper `downloadTime` captured via companion **`!SmartTSM_DataTap`** (observe-only wrap of `TSM_APPHELPER_LOAD_DATA`) — PARTIAL vs internal `AuctionDB.GetAppDataUpdateTimes`.
+- Bag/login reevaluation uses AuctionDB data; **does not** start AH scans. See `docs/TSM_DATA_SOURCES.md`.

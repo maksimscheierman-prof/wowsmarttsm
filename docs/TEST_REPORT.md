@@ -4,7 +4,7 @@
 
 Run: `python tools/test_runner.py --all`
 
-**Latest run (2026-11-12):** `33 passed, 0 failed` — mode `OFFLINE_MOCK`.
+**Latest run (2026-11-12, v0.1.1):** `43 passed, 0 failed` — mode `OFFLINE_MOCK`.
 
 Categories covered:
 
@@ -14,6 +14,7 @@ Categories covered:
 - Mock TSM group move / undo / isolation
 - Addon structure + Lua syntax sanity
 - Error fingerprint / repair attempt ceiling
+- TSM data freshness / cache invalidation / debounce / no AH-scan reeval
 
 **These are OFFLINE_MOCK results. They are not in-game smoke tests.**
 

@@ -58,7 +58,9 @@ function ItemProfile.Build(raw)
 	}, maxAge)
 
 	local stale = false
-	if raw.dataTimestamp then
+	if raw.freshness and raw.freshness.stale and #raw.freshness.stale > 0 then
+		stale = true
+	elseif raw.dataTimestamp then
 		local age = Time.AgeSeconds(raw.dataTimestamp)
 		stale = age ~= nil and age > maxAge
 	elseif market == nil and region == nil then
@@ -98,6 +100,10 @@ function ItemProfile.Build(raw)
 		dataTimestamp = raw.dataTimestamp or Time.Now(),
 		dataQuality = dataQuality,
 		stale = stale,
+		sourceMeta = raw.sourceMeta,
+		freshness = raw.freshness,
+		needsLiveCompetition = raw.needsLiveCompetition and true or false,
+		fromAuctionDB = raw.fromAuctionDB ~= false,
 		variantKey = raw.variantKey, -- bonus IDs / suffixes when available
 	}
 end

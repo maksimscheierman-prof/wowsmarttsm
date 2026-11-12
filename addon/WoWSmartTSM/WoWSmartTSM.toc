@@ -3,7 +3,7 @@
 ## Notes: Intelligent AH companion for TradeSkillMaster — classify, price, explain skips, bulk review, vendor safely.
 ## Notes-deDE: Intelligenter AH-Begleiter für TradeSkillMaster — klassifizieren, preisen, Skips erklären, Sammelreview, Vendor sicher.
 ## Author: maksimscheierman-prof
-## Version: 0.1.0
+## Version: 0.1.1
 ## SavedVariables: WoWSmartTSM_DB, WoWSmartTSM_Diagnostics
 ## OptionalDeps: TradeSkillMaster, TradeSkillMaster_AppHelper, BugSack, !BugGrabber
 ## DefaultState: enabled
@@ -39,7 +39,9 @@ Locale\Locale.lua
 
 # TSM bridge
 TSM\Detect.lua
+TSM\Freshness.lua
 TSM\Prices.lua
+TSM\PostingCache.lua
 TSM\Groups.lua
 TSM\Operations.lua
 TSM\SkipMap.lua
@@ -59,6 +61,7 @@ Rules\Engine.lua
 Core\DB.lua
 Core\Undo.lua
 Core\ScanService.lua
+Core\AutoEval.lua
 Core\VendorService.lua
 Core\History.lua
 Core\Commands.lua

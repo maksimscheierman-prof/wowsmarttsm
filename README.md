@@ -2,7 +2,9 @@
 
 Intelligent Auction House companion for **TradeSkillMaster** on **WoW Forever**.
 
-**Sell first, hold rarely.** Smart TSM classifies bag items, explains posting skips, proposes item-specific Smart groups, and gathers safe vendor candidates — without modifying original TSM files.
+**Sell first, hold rarely.** Smart TSM classifies bag items from **existing TSM AuctionDB / AppHelper data** (no duplicate AH scans), explains posting skips, proposes item-specific Smart groups, and gathers safe vendor candidates — without modifying original TSM files.
+
+Also install **`!SmartTSM_DataTap`** (bundled) so AppHelper `downloadTime` freshness is visible.
 
 ## Requirements
 
