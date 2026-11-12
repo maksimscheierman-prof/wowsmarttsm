@@ -12,6 +12,7 @@ TABS = [
     "CleanupTab.lua",
     "Dashboard.lua",
     "GroupsTab.lua",
+    "OperationsTab.lua",
     "SetupWizard.lua",
     "PostingTab.lua",
     "MailTab.lua",

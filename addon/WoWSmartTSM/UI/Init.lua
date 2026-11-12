@@ -13,6 +13,7 @@ local TAB_MAP = {
 	Cleanup = "CleanupTab",
 	Dashboard = "Dashboard",
 	Groups = "GroupsTab",
+	Operations = "OperationsTab",
 	Posting = "PostingTab",
 	Mail = "MailTab",
 	Skipped = "SkippedTab",

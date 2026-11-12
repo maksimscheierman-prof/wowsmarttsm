@@ -16,6 +16,7 @@ TAB_FILES = {
     "Cleanup": "CleanupTab.lua",
     "Dashboard": "Dashboard.lua",
     "Groups": "GroupsTab.lua",
+    "Operations": "OperationsTab.lua",
     "Posting": "PostingTab.lua",
     "Mail": "MailTab.lua",
     "Vendor": "VendorTab.lua",

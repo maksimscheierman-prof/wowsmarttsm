@@ -4,36 +4,31 @@ local Layout = Smart:Module("Layout")
 local Theme = Smart:Module("Theme")
 local Groups = Smart:Module("Groups")
 local Operations = Smart:Module("Operations")
-local GroupManager = Smart:Module("GroupManager")
 local C = Smart:Module("Constants")
 local SetupWizard = Smart:Module("SetupWizard")
 
+--[[
+  v0.2.5 simplified setup — no duplicate group/ops management.
+  1 detect groups → 2 missing → 3 ops assign → 4 mailing → 5 auctioning bank → 6 gaps → 7 re-verify
+]]
+
 local private = {
 	step = 1,
-	appliedPreview = false,
-	testItem = nil,
 }
 
-local function strategyGroup(strategy)
-	return Groups.STRATEGY_TO_GROUP[strategy]
-end
-
 local STEPS = {
-	"Gruppen erkennen",
-	"Smart-Gruppen vorschlagen",
-	"Operationen konfigurieren",
-	"Mailing prüfen",
-	"Vorschau",
-	"Anwenden",
-	"Testitem",
+	"Existierende Gruppen",
+	"Fehlende Gruppen",
+	"Operationszuordnung",
+	"Mailing Azamat → Banko",
+	"Auctioning auf Banko",
+	"Offene Schritte",
+	"Erneut verifizieren",
 }
 
 local function store()
 	WoWSmartTSM_DB = WoWSmartTSM_DB or {}
-	WoWSmartTSM_DB.setupWizard = WoWSmartTSM_DB.setupWizard or {
-		completed = false,
-		completedAt = nil,
-	}
+	WoWSmartTSM_DB.setupWizard = WoWSmartTSM_DB.setupWizard or { completed = false }
 	return WoWSmartTSM_DB.setupWizard
 end
 
@@ -52,17 +47,15 @@ function SetupWizard.Render(parent)
 	local CP = Smart:GetModule("CharacterProfiles")
 	local role = CP and CP.GetRole and CP.GetRole() or C.ROLES.MAIN
 	local bank = CP and CP.GetPrimaryBankDisplay and CP.GetPrimaryBankDisplay() or "—"
-	local missing = Groups.MissingSmartGroups()
+	local checklist = Operations.SetupChecklist()
 	local paths = Groups.ListPaths()
-	local smartCount = 0
+	local missing = Groups.MissingSmartGroups()
+	local smartN = 0
 	for _, p in ipairs(paths) do
 		if Groups.IsSmartGroup(p) then
-			smartCount = smartCount + 1
+			smartN = smartN + 1
 		end
 	end
-	local mailOp, mailCode, mailNote = Operations.RecommendMailingOp(role, bank ~= "—" and bank or nil)
-	local checklist = Operations.SetupChecklist()
-	local cap = Groups.ProbeCapabilities()
 
 	local root = Layout.Begin(parent)
 	Layout.HeaderTitle(root.header, L("SETUP_WIZARD"), 12)
@@ -71,13 +64,12 @@ function SetupWizard.Render(parent)
 	Layout.AddText(
 		stack,
 		string.format(
-			"Schritt %d/%d: %s | Rolle=%s | Bank=%s | Setup=%s",
+			"Schritt %d/%d: %s | Rolle=%s | Bank=%s",
 			private.step,
 			#STEPS,
 			STEPS[private.step] or "?",
 			tostring(role),
-			tostring(bank),
-			SetupWizard.IsCompleted() and "fertig" or "offen"
+			tostring(bank)
 		),
 		"GameFontHighlightSmall",
 		Theme.COLORS.muted
@@ -85,172 +77,95 @@ function SetupWizard.Render(parent)
 	Layout.AddGap(stack, 6)
 
 	if private.step == 1 then
-		Layout.AddText(stack, "Vorhandene TSM-Gruppen (live):", "GameFontNormal")
-		Layout.AddText(
-			stack,
-			string.format("%d Pfade gesamt, davon %d unter Smart TSM", #paths, smartCount),
-			"GameFontHighlightSmall",
-			Theme.COLORS.text
-		)
-		local shown = 0
-		for _, p in ipairs(paths) do
-			if Groups.IsSmartGroup(p) and shown < 12 then
-				Layout.AddText(stack, "  • " .. p, "GameFontHighlightSmall", Theme.COLORS.good)
-				shown = shown + 1
-			end
-		end
-		if smartCount == 0 then
-			Layout.AddText(stack, "Noch keine Smart-Gruppen in TSM.", "GameFontHighlightSmall", Theme.COLORS.warn)
-		end
-		Layout.AddText(stack, "API: " .. tostring(cap.claim) .. " / " .. tostring(cap.writeMode), "GameFontHighlightSmall", Theme.COLORS.muted)
+		Layout.AddText(stack, string.format("%d TSM-Gruppen live, davon %d Smart.", #paths, smartN), "GameFontNormal")
+		Layout.AddText(stack, "Vollständige Hierarchie: Tab TSM-Gruppen.", "GameFontHighlightSmall", Theme.COLORS.muted)
 	elseif private.step == 2 then
-		Layout.AddText(stack, "Fehlende Smart-Gruppen:", "GameFontNormal")
 		if #missing == 0 then
-			Layout.AddText(stack, "Alle Smart-Gruppen vorhanden — keine Duplikate nötig.", "GameFontHighlightSmall", Theme.COLORS.good)
+			Layout.AddText(stack, "Keine fehlenden Smart-Gruppen — keine Duplikate nötig.", "GameFontHighlight", Theme.COLORS.good)
 		else
 			for _, m in ipairs(missing) do
-				Layout.AddText(stack, "  + " .. m, "GameFontHighlightSmall", Theme.COLORS.warn)
+				Layout.AddText(stack, "+ " .. Groups.FormatPath(m), "GameFontHighlightSmall", Theme.COLORS.warn)
 			end
-			Layout.AddText(
-				stack,
-				"Werden im Import-String als leere group:-Einträge vorbereitet (kein interner Schreibzugriff).",
-				"GameFontHighlightSmall",
-				Theme.COLORS.muted
-			)
+			Layout.AddButtonRow(stack, {
+				{
+					text = "Import vorbereiten (Shift)",
+					onClick = function()
+						local _, _, meta = Groups.ApplyMoves({}, { includeEmptyGroups = true })
+						if meta and meta.importString then
+							WoWSmartTSM_DB.lastGroupImportString = meta.importString
+						end
+						if not IsShiftKeyDown or not IsShiftKeyDown() then
+							print("|cffffcc00Shift + erneut klicken.|r")
+							return
+						end
+						print("|cff4ecdc4[SmartTSM]|r /smarttsm importstring → TSM Groups Import")
+					end,
+				},
+			})
 		end
 	elseif private.step == 3 then
-		Layout.AddText(stack, "Operationen (manuell in TSM):", "GameFontNormal")
-		for _, c in ipairs(checklist) do
-			if c.id == "ops_auctioning" or c.id == "ops_vendor" or c.id == "ops_inheritance" then
-				Layout.AddText(stack, "• " .. c.title, "GameFontHighlight", Theme.COLORS.text)
-				Layout.AddText(stack, "  " .. c.detail, "GameFontHighlightSmall", Theme.COLORS.muted)
-			end
-		end
+		Layout.AddText(stack, checklist[3].detail, "GameFontHighlightSmall", Theme.COLORS.text)
 		Layout.AddText(stack, Operations.OpenTSMHint(), "GameFontHighlightSmall", Theme.COLORS.warn)
+		Layout.AddButtonRow(stack, {
+			{
+				text = L("OPERATIONS_TAB"),
+				onClick = function()
+					local MainFrame = Smart:GetModule("MainFrame")
+					if MainFrame then
+						MainFrame.SelectTab("Operations")
+					end
+				end,
+			},
+		})
 	elseif private.step == 4 then
-		Layout.AddText(stack, "Mailing MAIN → Banko:", "GameFontNormal")
-		if mailOp then
-			Layout.AddText(
-				stack,
-				"Empfohlen: Op „" .. mailOp .. "“ — " .. tostring(mailNote),
-				"GameFontHighlightSmall",
-				Theme.COLORS.good
-			)
-		else
-			Layout.AddText(
-				stack,
-				"Keine Mailing-Op: " .. tostring(mailNote) .. " [" .. tostring(mailCode) .. "]",
-				"GameFontHighlightSmall",
-				Theme.COLORS.warn
-			)
-		end
-		Layout.AddText(
-			stack,
-			"BANK sendet niemals an sich selbst. Verkaufsgruppen auf BANK: nur Auctioning, kein Mailing.",
-			"GameFontHighlightSmall",
-			Theme.COLORS.muted
-		)
+		local c = checklist[4]
+		Layout.AddText(stack, c.detail, "GameFontHighlightSmall", c.ok and Theme.COLORS.good or Theme.COLORS.warn)
+		Layout.AddText(stack, "BANK sendet niemals an sich selbst.", "GameFontHighlightSmall", Theme.COLORS.muted)
 	elseif private.step == 5 then
-		local ScanService = Smart:GetModule("ScanService")
-		local results = ScanService.GetLastResults() or {}
-		local proposals = GroupManager.BuildProposals(results)
-		local preview = GroupManager.Preview(proposals)
-		Layout.AddText(stack, "Konfigurations-Vorschau:", "GameFontNormal")
+		Layout.AddText(stack, checklist[5].detail, "GameFontHighlightSmall", Theme.COLORS.text)
 		Layout.AddText(
 			stack,
-			string.format(
-				"Sichere Moves=%d | Prüfen=%d | Geschützt=%d | Fehlende Gruppen=%d",
-				preview.safeCount,
-				preview.reviewCount,
-				preview.protectedCount,
-				#(preview.missingGroups or {})
-			),
-			"GameFontHighlightSmall",
-			Theme.COLORS.text
-		)
-		Layout.AddText(
-			stack,
-			"Nach Bestätigung: Import-String oder Direct-API (falls erkannt). Kein stilles Vendorn/Mailn/Posten.",
+			"Auf Banko: Smart Quick/Profit/Rare mit Auctioning — ohne Mailing-Op.",
 			"GameFontHighlightSmall",
 			Theme.COLORS.muted
 		)
 	elseif private.step == 6 then
-		Layout.AddText(stack, "Anwenden (nur nach Shift-Bestätigung):", "GameFontNormal")
+		Layout.AddText(stack, "Offene / manuelle Schritte:", "GameFontNormal")
+		for _, c in ipairs(checklist) do
+			local mark = c.ok and "[OK]" or (c.manual and "[MANUELL]" or "[ ]")
+			Layout.AddText(
+				stack,
+				mark .. " " .. c.title .. " — " .. c.detail,
+				"GameFontHighlightSmall",
+				c.ok and Theme.COLORS.good or Theme.COLORS.warn
+			)
+		end
+	elseif private.step == 7 then
+		local hierarchy = Groups.BuildHierarchy({})
+		Layout.AddText(
+			stack,
+			string.format("Re-Verify: %d Gruppenpfade | fehlende Smart=%d", #hierarchy, #missing),
+			"GameFontNormal"
+		)
 		Layout.AddButtonRow(stack, {
 			{
-				text = "Smart-Gruppen Import vorbereiten (Shift)",
-				maxWidth = 320,
+				text = "Gruppen aktualisieren",
 				onClick = function()
-					local moves = {}
-					-- empty-group bootstrap
-					local ok, applied, meta = Groups.ApplyMoves(moves, { includeEmptyGroups = true })
-					private.appliedPreview = true
-					if meta and meta.importString then
-						WoWSmartTSM_DB.lastGroupImportString = meta.importString
-						print("|cff4ecdc4[SmartTSM]|r Setup-Import (Gruppenstruktur):")
-						local s = meta.importString
-						print((#s > 200) and (s:sub(1, 200) .. "…") or s)
-					end
-					if not IsShiftKeyDown or not IsShiftKeyDown() then
-						print("|cffffcc00Shift halten und erneut klicken, um als bestätigt zu markieren.|r")
-						return
-					end
-					print("|cff4ecdc4[SmartTSM]|r In TSM Groups → Import einfügen, dann Weiter.")
 					SetupWizard.Render(parent)
 				end,
 			},
-		})
-		if private.appliedPreview then
-			Layout.AddText(stack, "Import vorbereitet — manuell in TSM einfügen.", "GameFontHighlightSmall", Theme.COLORS.good)
-		end
-		Layout.AddText(stack, Groups.OpenTSMGroupsHint(), "GameFontHighlightSmall", Theme.COLORS.muted)
-	elseif private.step == 7 then
-		Layout.AddText(stack, "Testitem durch den Workflow:", "GameFontNormal")
-		local ScanService = Smart:GetModule("ScanService")
-		local results = ScanService.GetLastResults() or {}
-		local sample = results[1]
-		if sample then
-			private.testItem = sample
-			local live = Groups.GetPathByItem(sample.itemString)
-			Layout.AddText(stack, "Item: " .. tostring(sample.name), "GameFontHighlight", Theme.COLORS.text)
-			Layout.AddText(stack, "Strategie: " .. tostring(sample.strategy), "GameFontHighlightSmall", Theme.COLORS.muted)
-			Layout.AddText(stack, "Aktion: " .. tostring(sample.inventoryAction), "GameFontHighlightSmall", Theme.COLORS.muted)
-			Layout.AddText(
-				stack,
-				"TSM-Gruppe (live): " .. GroupManager.GroupLabel(live),
-				"GameFontHighlightSmall",
-				Theme.COLORS.text
-			)
-			Layout.AddText(
-				stack,
-				"Zielgruppe: " .. GroupManager.GroupLabel(strategyGroup(sample.strategy)),
-				"GameFontHighlightSmall",
-				Theme.COLORS.text
-			)
-			Layout.AddText(
-				stack,
-				"Nächster manueller Schritt: TSM Groups prüfen → ggf. Auctioning/Mailing-Op zuweisen → am BANK posten / am MAIN mailen (nur mit Bestätigung).",
-				"GameFontHighlightSmall",
-				Theme.COLORS.muted
-			)
-		else
-			Layout.AddText(
-				stack,
-				"Keine Scan-Ergebnisse — zuerst „Neu bewerten“ im TSM-Gruppen-Tab.",
-				"GameFontHighlightSmall",
-				Theme.COLORS.warn
-			)
-		end
-		Layout.AddButtonRow(stack, {
 			{
 				text = "Setup abschließen",
 				onClick = function()
 					SetupWizard.MarkCompleted()
-					print("|cff4ecdc4[SmartTSM]|r Setup-Assistent abgeschlossen.")
+					print("|cff4ecdc4[SmartTSM]|r Setup abgeschlossen.")
 					SetupWizard.Render(parent)
 				end,
 			},
 		})
+		if SetupWizard.IsCompleted() then
+			Layout.AddText(stack, "Setup markiert als fertig.", "GameFontHighlightSmall", Theme.COLORS.good)
+		end
 	end
 
 	Layout.AddGap(stack, 10)
@@ -278,14 +193,22 @@ function SetupWizard.Render(parent)
 				end
 			end,
 		},
+		{
+			text = L("CLEANUP"),
+			onClick = function()
+				local MainFrame = Smart:GetModule("MainFrame")
+				if MainFrame then
+					MainFrame.SelectTab("Cleanup")
+				end
+			end,
+		},
 	})
-
 	Layout.AddText(
 		stack,
-		"Manuell bleibt: TSM Operations anlegen/zuweisen, Import einfügen, AH/Mail/Vendor nur über TSM mit Bestätigung.",
+		"Keine doppelte Gruppen-/Ops-Verwaltung — TSM bleibt die Engine.",
 		"GameFontHighlightSmall",
 		Theme.COLORS.muted
 	)
 	Layout.FinishStack(stack)
-	Layout.FooterText(root.footer, "Einmaliger Assistent — TSM bleibt Posting-/Mail-/Vendor-Engine")
+	Layout.FooterText(root.footer, SetupWizard.IsCompleted() and "Setup fertig" or "Setup offen")
 end

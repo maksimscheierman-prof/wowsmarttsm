@@ -8,6 +8,9 @@ local CleanupService = Smart:Module("CleanupService")
 local ItemRules = Smart:Module("ItemRules")
 local ItemExplain = Smart:Module("ItemExplain")
 local ItemContextMenu = Smart:Module("ItemContextMenu")
+local Groups = Smart:Module("Groups")
+local GroupManager = Smart:Module("GroupManager")
+local Undo = Smart:Module("Undo")
 local CleanupTab = Smart:Module("CleanupTab")
 
 local private = {
@@ -16,6 +19,10 @@ local private = {
 	focusDecision = nil,
 	filter = "ALL",
 	lastIndex = nil,
+	pickerOpen = false,
+	pickerSearch = "",
+	assignPermanent = true, -- dauerhaft vs einmalig
+	proposalByItem = {},
 }
 
 local function selectedCount()
@@ -196,14 +203,24 @@ function CleanupTab.Render(parent)
 	end
 	Layout.AddButtonRow(stack, filterBtns)
 
+	local proposals = GroupManager.BuildProposals(results)
+	wipe(private.proposalByItem)
+	for _, p in ipairs(proposals) do
+		if p.itemString then
+			private.proposalByItem[p.itemString] = p
+		end
+	end
+	local preview = GroupManager.Preview(proposals)
+
 	local columns = {
 		{ title = "Sel", width = 28 },
-		{ title = "Item", width = 150 },
-		{ title = "Menge", width = 52 },
-		{ title = "Markt", width = 72 },
-		{ title = "Händler", width = 72 },
-		{ title = "Aktion", width = 100 },
-		{ title = "Begründung", width = 200 },
+		{ title = "Item", width = 130 },
+		{ title = "Menge", width = 44 },
+		{ title = "TSM-Gruppe", width = 120 },
+		{ title = "Vorschlag", width = 120 },
+		{ title = "Status", width = 64 },
+		{ title = "Aktion", width = 90 },
+		{ title = "Begründung", width = 140 },
 	}
 	local rows = {}
 	for idx, d in ipairs(aggregated) do
@@ -211,15 +228,21 @@ function CleanupTab.Render(parent)
 		local qty = d.actionQty or d.quantity or 1
 		local human = ItemExplain.HumanReason(d)
 		local key = rowKey(d)
+		local prop = private.proposalByItem[d.itemString]
+		local currentG = prop and prop.currentGroup or Groups.GetPathByItem(d.itemString)
+		local proposedG = prop and prop.proposedGroup
+		local status = prop and GroupManager.StatusLabel(prop.status) or "—"
 		rows[#rows + 1] = {
 			private.selected[d.itemString] and "✓" or "",
 			{ text = name, fullText = name, color = Theme.StrategyColor(d.strategy), tooltip = name },
 			"×" .. tostring(qty),
-			Money.Format(d.marketValue or 0, true),
-			Money.Format(d.vendorSell or 0, true),
+			GroupManager.GroupLabel(currentG),
+			GroupManager.GroupLabel(proposedG),
+			status,
 			CleanupService.ActionLabel(d.inventoryAction),
 			{ text = human, fullText = human, tooltip = table.concat(d.actionReasons or {}, ", ") },
 			_decision = d,
+			_prop = prop,
 			_index = idx,
 			_key = key,
 		}
@@ -298,6 +321,102 @@ function CleanupTab.Render(parent)
 
 	renderDetail(stack, private.focusDecision)
 
+	-- Group assignment panel
+	Layout.AddGap(stack, 6)
+	Layout.AddText(stack, "TSM-Gruppenzuordnung", "GameFontNormal")
+	Layout.AddText(
+		stack,
+		string.format(
+			"Sichere Vorschläge=%d | Prüfen=%d | Geschützt=%d | Zuordnung=%s",
+			preview.safeCount or 0,
+			preview.reviewCount or 0,
+			preview.protectedCount or 0,
+			private.assignPermanent and "dauerhaft" or "einmalig"
+		),
+		"GameFontHighlightSmall",
+		Theme.COLORS.muted
+	)
+	if private.focusDecision then
+		local fp = private.proposalByItem[private.focusDecision.itemString]
+		Layout.AddText(
+			stack,
+			string.format(
+				"Fokus: aktuell=%s → vorschlag=%s",
+				GroupManager.GroupLabel(fp and fp.currentGroup),
+				GroupManager.GroupLabel(fp and fp.proposedGroup)
+			),
+			"GameFontHighlightSmall",
+			Theme.COLORS.text
+		)
+	end
+
+	Layout.AddButtonRow(stack, {
+		{
+			text = private.assignPermanent and "Modus: Dauerhaft" or "Modus: Einmalig",
+			tooltip = "Dauerhaft speichert die Wahl; Einmalig nur für diesen Import",
+			onClick = function()
+				private.assignPermanent = not private.assignPermanent
+				CleanupTab.Render(parent)
+			end,
+		},
+		{
+			text = private.pickerOpen and "Gruppenliste schließen" or "Gruppe wählen…",
+			tooltip = "Dropdown aller existierenden TSM-Gruppen inkl. Keine Gruppe",
+			onClick = function()
+				private.pickerOpen = not private.pickerOpen
+				CleanupTab.Render(parent)
+			end,
+		},
+	})
+
+	if private.pickerOpen then
+		local choices = Groups.ListChoices({ search = private.pickerSearch, includeMissingSmart = true })
+		Layout.AddText(stack, "Zielgruppe für Auswahl:", "GameFontHighlightSmall", Theme.COLORS.muted)
+		local pickBtns = {}
+		local shown = 0
+		for _, c in ipairs(choices) do
+			if shown < 12 then
+				local label = c.label
+				if c.itemCount then
+					label = label .. " (" .. tostring(c.itemCount) .. ")"
+				end
+				pickBtns[#pickBtns + 1] = {
+					text = label,
+					maxWidth = 220,
+					onClick = function()
+						local n = 0
+						for itemString in pairs(private.selected) do
+							GroupManager.SetPreferredGroup(itemString, c.path, private.assignPermanent)
+							n = n + 1
+						end
+						if n == 0 and private.focusDecision and private.focusDecision.itemString then
+							GroupManager.SetPreferredGroup(
+								private.focusDecision.itemString,
+								c.path,
+								private.assignPermanent
+							)
+							n = 1
+						end
+						print("|cff4ecdc4[SmartTSM]|r Gruppe gesetzt:", GroupManager.GroupLabel(c.path), "×" .. tostring(n))
+						private.pickerOpen = false
+						ScanService.ReevaluateBags({ reason = "group_choice" })
+						CleanupTab.Render(parent)
+					end,
+				}
+				shown = shown + 1
+			end
+		end
+		Layout.AddButtonRow(stack, pickBtns)
+		if #choices > 12 then
+			Layout.AddText(
+				stack,
+				string.format("… %d weitere Gruppen — /smarttsm groupsearch eingrenzen", #choices - 12),
+				"GameFontHighlightSmall",
+				Theme.COLORS.muted
+			)
+		end
+	end
+
 	Layout.AddGap(stack, 6)
 	Layout.AddButtonRow(stack, {
 		{
@@ -312,11 +431,117 @@ function CleanupTab.Render(parent)
 			end,
 		},
 		{
+			text = "Sichere wählen",
+			tooltip = "Nur Status Sicher (ohne bereits OK)",
+			onClick = function()
+				wipe(private.selected)
+				for _, p in ipairs(GroupManager.FilterSafe(proposals)) do
+					private.selected[p.itemString] = true
+				end
+				CleanupTab.Render(parent)
+			end,
+		},
+		{
 			text = "Keine",
 			onClick = function()
 				wipe(private.selected)
 				private.focusDecision = nil
 				private.focusKey = nil
+				CleanupTab.Render(parent)
+			end,
+		},
+		{
+			text = L("APPLY_SAFE_ALL") .. " (Shift)",
+			tooltip = "Sichere Gruppierung → Vorschau → Import/Direct → Verifizieren",
+			maxWidth = 280,
+			onClick = function()
+				local stage = GroupManager.StageSafeApply(proposals)
+				print("|cff4ecdc4[SmartTSM]|r Vorschau sichere Gruppen: " .. tostring(stage.safeCount))
+				for i = 1, math.min(5, #(stage.moves or {})) do
+					local m = stage.moves[i]
+					print(string.format("  %s → %s", tostring(m.name or m.itemString), tostring(m.toGroup)))
+				end
+				if not IsShiftKeyDown or not IsShiftKeyDown() then
+					print("|cffffcc00Shift halten und erneut bestätigen.|r")
+					return
+				end
+				local ok, applied, meta = GroupManager.ConfirmSafeApply(true)
+				if meta and meta.error == "MANUAL_ROLE" then
+					print("|cffffcc00MANUAL-Rolle: keine Auto-Übernahme.|r")
+					return
+				end
+				if meta and meta.mode == "IMPORT_STRING" then
+					WoWSmartTSM_DB = WoWSmartTSM_DB or {}
+					WoWSmartTSM_DB.lastGroupImportString = meta.importString
+					print("|cff4ecdc4[SmartTSM]|r Import bereit. /smarttsm importstring → TSM Groups → Import → Verifizieren")
+				else
+					print("|cff4ecdc4[SmartTSM]|r Angewendet: " .. tostring(#(applied or {})) .. " ok=" .. tostring(ok))
+				end
+				local verified, failed = Groups.VerifyMoves(stage.moves or {})
+				print("|cff4ecdc4[SmartTSM]|r Verify OK=" .. tostring(#verified) .. " fehlend=" .. tostring(#failed))
+				ScanService.ReevaluateBags({ reason = "group_apply" })
+				CleanupTab.Render(parent)
+			end,
+		},
+		{
+			text = "Auswahl zuweisen (Shift)",
+			tooltip = "Ausgewählte Items → gewählte/vorgeschlagene Gruppe",
+			maxWidth = 200,
+			onClick = function()
+				local moves = {}
+				for itemString in pairs(private.selected) do
+					local p = private.proposalByItem[itemString]
+					local to = p and p.proposedGroup
+					if to and to ~= "" then
+						moves[#moves + 1] = {
+							itemString = itemString,
+							fromGroup = p.currentGroup,
+							toGroup = to,
+							name = p.name,
+						}
+					end
+				end
+				print("|cff4ecdc4[SmartTSM]|r Auswahl-Moves: " .. tostring(#moves))
+				if not IsShiftKeyDown or not IsShiftKeyDown() then
+					print("|cffffcc00Shift halten und erneut bestätigen.|r")
+					return
+				end
+				local ok, applied, meta = GroupManager.ApplySelectedMoves(moves, {
+					shiftHeld = true,
+					permanent = private.assignPermanent,
+					once = not private.assignPermanent,
+				})
+				if meta and meta.mode == "IMPORT_STRING" then
+					WoWSmartTSM_DB = WoWSmartTSM_DB or {}
+					WoWSmartTSM_DB.lastGroupImportString = meta.importString
+					print("|cff4ecdc4[SmartTSM]|r Import bereit. /smarttsm importstring")
+				end
+				local verified, failed = Groups.VerifyMoves(moves)
+				print(
+					"|cff4ecdc4[SmartTSM]|r Apply ok="
+						.. tostring(ok)
+						.. " verifyOK="
+						.. tostring(#verified)
+						.. " fehlend="
+						.. tostring(#failed)
+				)
+				ScanService.ReevaluateBags({ reason = "group_apply_selected" })
+				CleanupTab.Render(parent)
+			end,
+		},
+		{
+			text = "Verifizieren",
+			onClick = function()
+				local moves = (GroupManager.GetLastPreview() or {}).moves or {}
+				local okList, bad = Groups.VerifyMoves(moves)
+				print("|cff4ecdc4[SmartTSM]|r Verify OK=" .. tostring(#okList) .. " fehlend=" .. tostring(#bad))
+				CleanupTab.Render(parent)
+			end,
+		},
+		{
+			text = L("UNDO"),
+			onClick = function()
+				Undo.UndoLast()
 				CleanupTab.Render(parent)
 			end,
 		},
@@ -354,13 +579,19 @@ function CleanupTab.Render(parent)
 	})
 	Layout.AddText(
 		stack,
-		"Linksklick = auswählen/Details · Rechtsklick = Menü · Strg/Shift = Mehrfachauswahl. Kein Verkauf ohne Bestätigung.",
+		"Linksklick/Strg/Shift = Auswahl · Gruppe wählen · Sichere Vorschläge (Shift). Hochpreisige bleiben Prüfen. Kein Verkauf ohne Bestätigung.",
 		"GameFontHighlightSmall",
 		Theme.COLORS.muted
 	)
 	Layout.FinishStack(stack)
 	Layout.FooterText(
 		root.footer,
-		string.format("Filter=%s | %d ausgewählt / %d Positionen (aggregiert)", private.filter, selectedCount(), #aggregated)
+		string.format(
+			"Filter=%s | %d ausgewählt / %d | Sicher=%d",
+			private.filter,
+			selectedCount(),
+			#aggregated,
+			preview.safeCount or 0
+		)
 	)
 end

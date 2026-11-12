@@ -134,6 +134,23 @@ function Commands.Handle(msg)
 		if MainFrame and MainFrame.SelectTab then
 			MainFrame.SelectTab("Groups")
 		end
+	elseif cmd == "operations" or cmd == "ops" then
+		openUI()
+		local MainFrame = Smart:GetModule("MainFrame")
+		if MainFrame and MainFrame.SelectTab then
+			MainFrame.SelectTab("Operations")
+		end
+	elseif cmd == "groupsearch" then
+		local GroupsTab = Smart:GetModule("GroupsTab")
+		if GroupsTab and GroupsTab.SetSearch then
+			GroupsTab.SetSearch(rest or "")
+			print("|cff4ecdc4[SmartTSM]|r Gruppensuche:", rest ~= "" and rest or "(leer)")
+		end
+		openUI()
+		local MainFrame = Smart:GetModule("MainFrame")
+		if MainFrame and MainFrame.SelectTab then
+			MainFrame.SelectTab("Groups")
+		end
 	elseif cmd == "setup" then
 		openUI()
 		local MainFrame = Smart:GetModule("MainFrame")
@@ -141,9 +158,9 @@ function Commands.Handle(msg)
 			MainFrame.SelectTab("Setup")
 		end
 	elseif cmd == "help" then
-		print("|cff4ecdc4[SmartTSM]|r /smarttsm [show|scan|reeval|groups|setup|importstring|status|errors|diagnose|debug|reset|help]")
+		print("|cff4ecdc4[SmartTSM]|r /smarttsm [show|scan|reeval|groups|operations|groupsearch|setup|importstring|status|errors|diagnose|debug|reset|help]")
 		print("|cff4ecdc4[SmartTSM]|r scan/reeval = Taschen anhand TSM-Daten neu bewerten (kein AH-Scan)")
-		print("|cff4ecdc4[SmartTSM]|r groups = TSM-Gruppen-Tab | setup = Assistent | importstring = letzter Import")
+		print("|cff4ecdc4[SmartTSM]|r groups/operations/setup | groupsearch <text> | importstring")
 		print("|cff4ecdc4[SmartTSM]|r scan show = Neubewertung und UI öffnen; Einstellung: openUIAfterScan")
 	else
 		print("|cff4ecdc4[SmartTSM]|r Unknown command. /smarttsm help")

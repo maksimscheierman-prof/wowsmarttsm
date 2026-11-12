@@ -21,8 +21,11 @@ def _read(rel: str) -> str:
 
 
 def test_version_024():
-    assert "0.2.4" in _read("Core/Version.lua")
-    assert "0.2.4" in _read("WoWSmartTSM.toc")
+    # Superseded by v0.2.5+; keep smoke that Group Manager surface remains.
+    ver = _read("Core/Version.lua")
+    toc = _read("WoWSmartTSM.toc")
+    assert 'STRING = "0.2.' in ver
+    assert "## Version: 0.2." in toc
 
 
 def test_required_v024_files():

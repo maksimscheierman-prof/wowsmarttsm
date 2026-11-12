@@ -101,6 +101,127 @@ function Groups.GetItemsInGroup(path, includeSubGroups)
 	return result
 end
 
+function Groups.CountItems(path, includeSubGroups)
+	local items = Groups.GetItemsInGroup(path, includeSubGroups)
+	return #items, items
+end
+
+function Groups.FormatPath(path)
+	local api = tsmGroupApi()
+	if api and api.FormatGroupPath and path and path ~= "" then
+		local ok, formatted = pcall(api.FormatGroupPath, path)
+		if ok and formatted then
+			return formatted
+		end
+	end
+	if not path or path == "" then
+		return "Keine Gruppe"
+	end
+	return (tostring(path):gsub("`", " > "))
+end
+
+function Groups.SplitPath(path)
+	local api = tsmGroupApi()
+	if api and api.SplitGroupPath and path and path ~= "" then
+		local ok, parent, name = pcall(api.SplitGroupPath, path)
+		if ok then
+			return parent, name
+		end
+	end
+	if not path or path == "" then
+		return nil, ""
+	end
+	local parent, name = path:match("^(.*)`([^`]+)$")
+	if name then
+		return parent, name
+	end
+	return nil, path
+end
+
+local function pathDepth(path)
+	if not path or path == "" then
+		return 0
+	end
+	local n = 1
+	for _ in tostring(path):gmatch("`") do
+		n = n + 1
+	end
+	return n
+end
+
+---Sorted hierarchy rows for UI: depth, path, display, itemCount, isSmart.
+function Groups.BuildHierarchy(opts)
+	opts = opts or {}
+	local search = (opts.search or ""):lower()
+	local paths = Groups.ListPaths()
+	table.sort(paths, function(a, b)
+		return tostring(a) < tostring(b)
+	end)
+	local rows = {}
+	for _, path in ipairs(paths) do
+		local display = Groups.FormatPath(path)
+		if search == "" or display:lower():find(search, 1, true) or tostring(path):lower():find(search, 1, true) then
+			local count = Groups.CountItems(path, false)
+			local parent, leaf = Groups.SplitPath(path)
+			rows[#rows + 1] = {
+				path = path,
+				parent = parent,
+				name = leaf or path,
+				display = display,
+				depth = pathDepth(path),
+				itemCount = count,
+				itemCountReliable = Groups.ProbeCapabilities().getItems,
+				isSmart = Groups.IsSmartGroup(path),
+			}
+		end
+	end
+	return rows
+end
+
+---Dropdown choices including "Keine Gruppe" sentinel (empty string).
+function Groups.ListChoices(opts)
+	opts = opts or {}
+	local choices = {
+		{ path = "", label = "Keine Gruppe" },
+	}
+	for _, row in ipairs(Groups.BuildHierarchy({ search = opts.search })) do
+		choices[#choices + 1] = {
+			path = row.path,
+			label = row.display,
+			itemCount = row.itemCount,
+			isSmart = row.isSmart,
+		}
+	end
+	-- Offer missing Smart groups as create-via-import targets
+	if opts.includeMissingSmart then
+		for _, missing in ipairs(Groups.MissingSmartGroups()) do
+			local exists = false
+			for _, c in ipairs(choices) do
+				if c.path == missing then
+					exists = true
+					break
+				end
+			end
+			if not exists then
+				choices[#choices + 1] = {
+					path = missing,
+					label = Groups.FormatPath(missing) .. " (fehlt — Import)",
+					missing = true,
+					isSmart = true,
+				}
+			end
+		end
+	end
+	return choices
+end
+
+function Groups.OpenInTSM()
+	-- TSM_API has no Groups UI open; only AUCTION/CRAFTING/MAILING/VENDORING visibility.
+	local hint = Groups.OpenTSMGroupsHint()
+	print("|cff4ecdc4[SmartTSM]|r " .. hint)
+	return false, hint
+end
+
 function Groups.SmartGroupExists(path)
 	for _, p in ipairs(Groups.ListPaths()) do
 		if p == path then
