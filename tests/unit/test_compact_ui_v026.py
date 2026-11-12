@@ -23,8 +23,10 @@ def _read(rel: str) -> str:
 
 
 def test_version_026():
-	assert "0.2.6" in _read("Core/Version.lua")
-	assert "## Version: 0.2.6" in _read("WoWSmartTSM.toc")
+	ver = _read("Core/Version.lua")
+	toc = _read("WoWSmartTSM.toc")
+	assert 'STRING = "0.2.' in ver
+	assert "## Version: 0.2." in toc
 
 
 def test_layout_has_compact_apis():

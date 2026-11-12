@@ -69,9 +69,19 @@ function GroupsTab.Render(parent)
 	local _, bw = Layout.HeaderButton(root.header, "Aktualisieren", function()
 		GroupsTab.Render(parent)
 	end)
+	local Migration = Smart:GetModule("Migration")
+	local migPlan = Migration and Migration.GetLastPlan and Migration.GetLastPlan()
+	local migHint = migPlan and string.format(" · Mig:%d", #(migPlan.moves or {})) or ""
 	Layout.HeaderTitle(
 		root.header,
-		string.format("%s  ·  %d / fehlend %d  ·  %s", L("GROUPS_TAB"), #hierarchy, #missing, tostring(cap.writeMode)),
+		string.format(
+			"%s  ·  %d / fehlend %d  ·  %s%s",
+			L("GROUPS_TAB"),
+			#hierarchy,
+			#missing,
+			tostring(cap.writeMode),
+			migHint
+		),
 		(bw or 120) + 8
 	)
 
@@ -259,7 +269,7 @@ function GroupsTab.Render(parent)
 			end,
 		},
 	}, string.format(
-		"%d Gruppen · %d fehlend · Scroll=%s · Itemzuordnung im Aufräumen",
+		"%d Gruppen · %d fehlend · Scroll=%s · Mig=/smarttsm migrate · Vendor=behalten",
 		#hierarchy,
 		#missing,
 		(budget.bodyH < 180 or #hierarchy > 40) and "liste" or "nein"

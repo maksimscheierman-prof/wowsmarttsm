@@ -30,6 +30,7 @@ REQUIRED = [
     "UI/DiagnosticsTab.lua",
     "UI/BulkReview.lua",
     "Core/GroupManager.lua",
+    "Core/Migration.lua",
     "UI/GroupsTab.lua",
     "UI/OperationsTab.lua",
     "UI/SetupWizard.lua",

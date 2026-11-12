@@ -157,9 +157,56 @@ function Commands.Handle(msg)
 		if MainFrame and MainFrame.SelectTab then
 			MainFrame.SelectTab("Setup")
 		end
+	elseif cmd == "migrate" then
+		local Migration = Smart:GetModule("Migration")
+		if not Migration then
+			print("|cffff6666[SmartTSM]|r Migration-Modul fehlt")
+			return
+		end
+		local sub = (rest or ""):match("^(%S*)") or ""
+		sub = sub:lower()
+		if sub == "" or sub == "preview" or sub == "plan" then
+			Migration.BackupLive()
+			local report, plan = Migration.BuildReportText()
+			print("|cff4ecdc4[SmartTSM]|r " .. report:gsub("\n", " | "))
+			print("|cff4ecdc4[SmartTSM]|r Moves=" .. tostring(#(plan.moves or {})) .. " — /smarttsm migrate import (Shift)")
+		elseif sub == "import" then
+			local plan = Migration.GetLastPlan() or Migration.BuildPlan()
+			print("|cff4ecdc4[SmartTSM]|r Migration-Import Vorschau: " .. tostring(#(plan.moves or {})) .. " Items")
+			if not IsShiftKeyDown or not IsShiftKeyDown() then
+				print("|cffffcc00Shift halten + /smarttsm migrate import erneut.|r")
+				return
+			end
+			local ok, p, meta = Migration.PrepareImport(true)
+			print("|cff4ecdc4[SmartTSM]|r Import bereit ok=" .. tostring(ok) .. " — /smarttsm importstring")
+			if meta and meta.importString then
+				WoWSmartTSM_DB.lastGroupImportString = meta.importString
+			end
+		elseif sub == "verify" then
+			local okList, bad = Migration.Verify()
+			if type(bad) == "table" and bad.error then
+				print("|cffffcc00[SmartTSM]|r Verify: " .. tostring(bad.error))
+			else
+				print(
+					"|cff4ecdc4[SmartTSM]|r Verify OK="
+						.. tostring(#(okList or {}))
+						.. " fehlend="
+						.. tostring(#(bad or {}))
+				)
+				print("|cffffcc00Alte Verkaufsgruppen nur markiert — Löschen erst nach Owner-Freigabe.|r")
+			end
+		elseif sub == "delete-confirm" then
+			-- Requires exact phrase as rest after subcommand
+			local phrase = rest:match("^%S+%s+(.+)$") or ""
+			local ok, why = Migration.ConfirmDeleteOldSellGroups(phrase)
+			print("|cff4ecdc4[SmartTSM]|r delete-confirm: " .. tostring(ok) .. " " .. tostring(why))
+		else
+			print("|cff4ecdc4[SmartTSM]|r migrate [preview|import|verify|delete-confirm OWNER_CONFIRM_DELETE_OLD_SELL_GROUPS]")
+		end
 	elseif cmd == "help" then
-		print("|cff4ecdc4[SmartTSM]|r /smarttsm [show|scan|reeval|groups|operations|groupsearch|setup|importstring|status|errors|diagnose|debug|reset|help]")
+		print("|cff4ecdc4[SmartTSM]|r /smarttsm [show|scan|reeval|groups|operations|migrate|groupsearch|setup|importstring|status|errors|diagnose|debug|reset|help]")
 		print("|cff4ecdc4[SmartTSM]|r scan/reeval = Taschen anhand TSM-Daten neu bewerten (kein AH-Scan)")
+		print("|cff4ecdc4[SmartTSM]|r migrate preview|import|verify — Gruppenmigration (kein Auto-Löschen)")
 		print("|cff4ecdc4[SmartTSM]|r groups/operations/setup | groupsearch <text> | importstring")
 		print("|cff4ecdc4[SmartTSM]|r scan show = Neubewertung und UI öffnen; Einstellung: openUIAfterScan")
 	else

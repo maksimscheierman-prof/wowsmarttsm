@@ -130,48 +130,53 @@ function Operations.ValidatePriceFormula(formula)
 	return nil, "API_UNAVAILABLE"
 end
 
+-- Formulas documented from owner TSM ops Smart Single Sell / Smart Stack Sell (SV read-only).
+local OWNER_MIN = "check(first(crafting,dbmarket,dbregionmarketavg),max(0.5*first(dbmarket,dbregionmarketavg,crafting),2.11*vendorsell))"
+local OWNER_NORMAL = "check(first(crafting,dbmarket,dbregionmarketavg),max(first(dbmarket,dbregionmarketavg,crafting),3*vendorsell))"
+local OWNER_MAX = "check(first(crafting,dbmarket,dbregionmarketavg),max(2*first(dbmarket,dbregionmarketavg,crafting),5*vendorsell))"
+
 local DEFAULT_PROFILES = {
 	{
 		id = "quick",
 		type = "Auctioning",
 		name = C.OPS.QUICK,
 		group = C.GROUPS.QUICK,
-		minPrice = "max(vendorsell, first(dbminbuyout, dbmarket) * 0.85)",
-		normalPrice = "max(vendorsell * 1.1, first(dbmarket, dbminbuyout))",
-		maxPrice = "first(dbmarket, dbminbuyout) * 1.25",
-		postCap = "3",
-		stackSize = "1",
-		duration = "24",
-		undercut = "1c",
-		note = "Schnelldreher — nur anwenden wenn Formelquellen vorhanden.",
+		minPrice = OWNER_MIN,
+		normalPrice = OWNER_NORMAL,
+		maxPrice = OWNER_MAX,
+		postCap = "5",
+		stackSize = "20",
+		duration = "2",
+		undercut = "0c",
+		note = "Aus Smart Stack Sell (20er AH Sell) — Material-Stacks; in TSM manuell zuweisen.",
 	},
 	{
 		id = "profit",
 		type = "Auctioning",
 		name = C.OPS.PROFIT,
 		group = C.GROUPS.PROFIT,
-		minPrice = "max(vendorsell * 1.15, first(dbmarket, dbregionmarketavg) * 0.9)",
-		normalPrice = "first(dbmarket, dbregionmarketavg)",
-		maxPrice = "first(dbmarket, dbregionmarketavg) * 1.35",
-		postCap = "2",
+		minPrice = OWNER_MIN,
+		normalPrice = OWNER_NORMAL,
+		maxPrice = OWNER_MAX,
+		postCap = "3",
 		stackSize = "1",
-		duration = "24",
-		undercut = "1c",
-		note = "Standardprofit — Region nur wenn lokal fehlt.",
+		duration = "2",
+		undercut = "0c",
+		note = "Gleiche Owner-Preisformeln; mittlere Post-Cap.",
 	},
 	{
 		id = "rare",
 		type = "Auctioning",
 		name = C.OPS.RARE,
 		group = C.GROUPS.RARE,
-		minPrice = "max(vendorsell * 2, first(dbmarket, dbregionmarketavg) * 0.95)",
-		normalPrice = "first(dbmarket, dbregionmarketavg) * 1.1",
-		maxPrice = "first(dbmarket, dbregionmarketavg) * 1.6",
+		minPrice = OWNER_MIN,
+		normalPrice = OWNER_NORMAL,
+		maxPrice = OWNER_MAX,
 		postCap = "1",
 		stackSize = "1",
-		duration = "48",
-		undercut = "1c",
-		note = "Hochwertig — selten posten, nicht blind undercutten.",
+		duration = "3",
+		undercut = "0c",
+		note = "Aus Smart Single Sell (1er Group) — Einzelitems.",
 	},
 	{
 		id = "mail",
@@ -185,11 +190,12 @@ local DEFAULT_PROFILES = {
 	{
 		id = "vendor",
 		type = "Vendoring",
-		name = C.OPS.VENDOR,
-		group = C.GROUPS.VENDOR,
+		name = "AHeqVendorPriceAutoSell",
+		group = "Auto Vendeor ALL",
 		sellTrash = "true",
-		vsDestroyValue = UNKNOWN,
-		note = "Nur nach Bestätigung am Händler; keine Auto-Verkäufe durch Smart TSM.",
+		vsMarketValue = "150% vendorsell",
+		vsDestroyValue = "dbmarket",
+		note = "Bestehende Vendor-Op unverändert — keine zweite Smart-Vendor-Gruppe.",
 	},
 }
 

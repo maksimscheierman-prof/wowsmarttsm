@@ -3,7 +3,7 @@
 ## Notes: Multi-character inventory & auction companion for TradeSkillMaster — Main cleanup, bank mail, vendor safely.
 ## Notes-deDE: Multi-Charakter Inventar- & Auktions-Begleiter für TradeSkillMaster — Aufräumen, Bank-Post, Händler sicher.
 ## Author: maksimscheierman-prof
-## Version: 0.2.6
+## Version: 0.2.7
 ## SavedVariables: WoWSmartTSM_DB, WoWSmartTSM_Diagnostics
 ## OptionalDeps: TradeSkillMaster, TradeSkillMaster_AppHelper, BugSack, !BugGrabber
 ## DefaultState: enabled
@@ -71,6 +71,7 @@ Core\ScanService.lua
 Core\AutoEval.lua
 Core\CleanupService.lua
 Core\GroupManager.lua
+Core\Migration.lua
 Core\MailService.lua
 Core\VendorService.lua
 Core\History.lua
