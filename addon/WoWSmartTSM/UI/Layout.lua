@@ -3,62 +3,162 @@ local Theme = Smart:Module("Theme")
 local Layout = Smart:Module("Layout")
 
 --[[
-  Robust tab content layout:
-  - Replace entire content root each render (no orphaned FontStrings)
-  - Vertical stack with measured heights / wrapping
-  - Header / body / footer regions
+  Robust tab content layout (v0.2.1):
+  - Replace managed _smartRoot each render
+  - Never mass-unparent host children (BackdropTemplate NineSlice must stay)
+  - Explicit size fallbacks when host reports 0×0 while hidden
+  - Header / body / footer regions with measured stacks
 ]]
 
 local PADDING = 14
 local GAP = 8
 
-function Layout.ClearHost(host)
-	if host._smartRoot then
-		host._smartRoot:Hide()
-		host._smartRoot:SetParent(nil)
-		host._smartRoot = nil
+local discardHost
+
+local function getDiscardHost()
+	if discardHost then
+		return discardHost
 	end
-	-- Also hide leftover children/regions from older buggy renders
-	local children = { host:GetChildren() }
-	for _, child in ipairs(children) do
-		child:Hide()
-		child:SetParent(nil)
+	if not UIParent then
+		return nil
 	end
-	local regions = { host:GetRegions() }
-	for _, region in ipairs(regions) do
-		if region.GetObjectType and region:GetObjectType() == "FontString" then
-			region:SetText("")
-			region:Hide()
+	discardHost = CreateFrame("Frame", "WoWSmartTSMLayoutDiscard", UIParent)
+	discardHost:Hide()
+	discardHost:SetSize(1, 1)
+	discardHost:SetAlpha(0)
+	return discardHost
+end
+
+---Resolve usable width/height even when the host has not laid out yet.
+function Layout.ResolveHostSize(host)
+	local w = (host and host.GetWidth and host:GetWidth()) or 0
+	local h = (host and host.GetHeight and host:GetHeight()) or 0
+	if (w < 20 or h < 20) and host and host.GetParent then
+		local p = host:GetParent()
+		local depth = 0
+		while p and depth < 6 do
+			local pw = (p.GetWidth and p:GetWidth()) or 0
+			local ph = (p.GetHeight and p:GetHeight()) or 0
+			if pw > 40 and ph > 40 then
+				if w < 20 then
+					w = math.max(120, pw - 24)
+				end
+				if h < 20 then
+					h = math.max(120, ph - 120)
+				end
+				break
+			end
+			p = p.GetParent and p:GetParent() or nil
+			depth = depth + 1
 		end
+	end
+	if w < 20 then
+		w = 900
+	end
+	if h < 20 then
+		h = 520
+	end
+	return w, h
+end
+
+function Layout.ClearHost(host)
+	if not host then
+		return
+	end
+	local old = host._smartRoot
+	host._smartRoot = nil
+	if not old then
+		return
+	end
+	old:Hide()
+	old:SetAlpha(0)
+	if old.ClearAllPoints then
+		old:ClearAllPoints()
+	end
+	local discard = getDiscardHost()
+	if discard and old.SetParent then
+		-- Never SetParent(nil): Forever/Backdrop hosts can break; keep discard bin.
+		pcall(old.SetParent, old, discard)
 	end
 end
 
 ---Create a fresh root with header/body/footer for a tab render.
 function Layout.Begin(host)
 	Layout.ClearHost(host)
+	local w, h = Layout.ResolveHostSize(host)
 	local root = CreateFrame("Frame", nil, host)
+	root:SetSize(w, h)
 	root:SetAllPoints(host)
+	local hostLevel = (host.GetFrameLevel and host:GetFrameLevel()) or 0
+	root:SetFrameLevel(hostLevel + 20)
+	root:SetAlpha(1)
+	root:Show()
+	root._smartManaged = true
 	host._smartRoot = root
 
 	local header = CreateFrame("Frame", nil, root)
 	header:SetPoint("TOPLEFT", PADDING, -PADDING)
 	header:SetPoint("TOPRIGHT", -PADDING, -PADDING)
 	header:SetHeight(36)
+	header:Show()
 
 	local footer = CreateFrame("Frame", nil, root)
 	footer:SetPoint("BOTTOMLEFT", PADDING, PADDING)
 	footer:SetPoint("BOTTOMRIGHT", -PADDING, PADDING)
 	footer:SetHeight(28)
+	footer:Show()
 
 	local body = CreateFrame("Frame", nil, root)
 	body:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -GAP)
 	body:SetPoint("BOTTOMRIGHT", footer, "TOPRIGHT", 0, GAP)
+	body:Show()
 
 	root.header = header
 	root.body = body
 	root.footer = footer
 	root._stackY = 0
+	root._hostWidth = w
+	root._hostHeight = h
 	return root
+end
+
+---True if the managed root has at least one visible text/button child.
+function Layout.HasVisibleContent(host)
+	local root = host and host._smartRoot
+	if not root or (root.IsShown and not root:IsShown()) then
+		return false
+	end
+	local function scan(frame, depth)
+		if not frame or depth > 8 then
+			return false
+		end
+		if frame.GetRegions then
+			local regions = { frame:GetRegions() }
+			for _, region in ipairs(regions) do
+				if region.GetObjectType and region:GetObjectType() == "FontString" then
+					local text = region.GetText and region:GetText() or ""
+					if text and text ~= "" and (not region.IsShown or region:IsShown()) then
+						return true
+					end
+				end
+			end
+		end
+		if frame.GetChildren then
+			local children = { frame:GetChildren() }
+			for _, child in ipairs(children) do
+				if child.IsObjectType and child:IsObjectType("Button") then
+					if not child.IsShown or child:IsShown() then
+						return true
+					end
+				end
+				if scan(child, depth + 1) then
+					return true
+				end
+			end
+		end
+		return false
+	end
+	return scan(root, 0)
 end
 
 function Layout.HeaderTitle(header, text, rightReserve)
@@ -69,6 +169,7 @@ function Layout.HeaderTitle(header, text, rightReserve)
 	fs:SetWordWrap(false)
 	fs:SetText(text or "")
 	fs:SetTextColor(Theme.COLORS.text[1], Theme.COLORS.text[2], Theme.COLORS.text[3], 1)
+	fs:Show()
 	return fs
 end
 
@@ -83,6 +184,7 @@ function Layout.HeaderButton(header, text, onClick)
 	if onClick then
 		btn:SetScript("OnClick", onClick)
 	end
+	btn:Show()
 	return btn, w
 end
 
@@ -94,15 +196,20 @@ function Layout.FooterText(footer, text)
 	fs:SetWordWrap(true)
 	fs:SetText(text or "")
 	fs:SetTextColor(Theme.COLORS.muted[1], Theme.COLORS.muted[2], Theme.COLORS.muted[3], 1)
+	fs:Show()
 	return fs
 end
 
 ---Vertical stack helper on a parent frame.
 function Layout.Stack(parent)
+	local pw = (parent and parent.GetWidth and parent:GetWidth()) or 0
+	if pw < 20 then
+		pw = 400
+	end
 	return {
 		parent = parent,
 		y = 0,
-		width = math.max(100, (parent:GetWidth() or 400) - 4),
+		width = math.max(100, pw - 4),
 	}
 end
 
@@ -110,6 +217,8 @@ function Layout.StackEnsureWidth(stack)
 	local w = stack.parent:GetWidth() or 0
 	if w > 20 then
 		stack.width = w - 4
+	elseif stack.width < 100 then
+		stack.width = 400
 	end
 	return stack.width
 end
@@ -128,6 +237,7 @@ function Layout.AddText(stack, text, template, color)
 	fs:SetTextColor(c[1], c[2], c[3], c[4] or 1)
 	local h = math.max(14, fs:GetStringHeight() or 14)
 	fs:SetHeight(h)
+	fs:Show()
 	stack.y = stack.y + h + 4
 	return fs, h
 end
@@ -219,9 +329,9 @@ function Layout.AddButtonRow(stack, buttons)
 		local label, truncated = shortenLabel(fullText, useW)
 		local btn = CreateFrame("Button", nil, currentRow, "UIPanelButtonTemplate")
 		btn:SetSize(useW, BTN_HEIGHT)
-		btn:SetPoint("LEFT", currentRow, "LEFT", x, 0)
+		btn:SetPoint("TOPLEFT", currentRow, "TOPLEFT", x, 0)
 		btn:SetText(label)
-		if truncated or tip ~= label then
+		if truncated or (tip and tip ~= label) then
 			btn:SetScript("OnEnter", function(self)
 				GameTooltip:SetOwner(self, "ANCHOR_TOP")
 				GameTooltip:SetText(tip, 1, 1, 1, 1, true)
@@ -428,24 +538,32 @@ end
 function Layout.BodyStack(root, opts)
 	opts = opts or {}
 	local body = root.body
+	local bodyW = (body.GetWidth and body:GetWidth()) or 0
+	if bodyW < 20 then
+		bodyW = math.max(100, (root._hostWidth or 900) - (PADDING * 2))
+	end
 	local child
 	if opts.scroll == false then
 		child = CreateFrame("Frame", nil, body)
 		child:SetPoint("TOPLEFT", 4, -4)
 		child:SetPoint("BOTTOMRIGHT", -4, 4)
+		child:Show()
 		root._bodyScroll = nil
 		root._bodyChild = child
 	else
 		local scroll = CreateFrame("ScrollFrame", nil, body, "UIPanelScrollFrameTemplate")
 		scroll:SetPoint("TOPLEFT", 4, -4)
 		scroll:SetPoint("BOTTOMRIGHT", -26, 4)
+		scroll:Show()
 		child = CreateFrame("Frame", nil, scroll)
-		child:SetSize(math.max(100, (body:GetWidth() or 400) - 30), 10)
+		child:SetSize(math.max(100, bodyW - 30), 10)
 		scroll:SetScrollChild(child)
+		child:Show()
 		root._bodyScroll = scroll
 		root._bodyChild = child
 	end
 	local stack = Layout.Stack(child)
+	stack.width = math.max(100, bodyW - 30)
 	child:SetScript("OnSizeChanged", function(self, w)
 		if w and w > 40 then
 			stack.width = w - 4

@@ -9,8 +9,11 @@ local private = {
 	frame = nil,
 	tabs = {},
 	active = nil,
+	panel = nil,
 	content = nil,
 	tabBar = nil,
+	renderGen = 0,
+	sizeDirty = false,
 }
 
 -- Extended tab set for v0.2; role picks default
@@ -67,6 +70,10 @@ function MainFrame.GetContent()
 	return private.content
 end
 
+function MainFrame.GetActiveTab()
+	return private.active
+end
+
 function MainFrame.SavePosition()
 	local f = private.frame
 	if not f or not WoWSmartTSM_DB then
@@ -82,6 +89,9 @@ function MainFrame.SavePosition()
 end
 
 function MainFrame.SelectTab(name)
+	if not name then
+		return
+	end
 	private.active = name
 	for id, btn in pairs(private.tabs) do
 		if id == name then
@@ -146,7 +156,7 @@ function MainFrame.Create()
 	private.tabBar = tabBar
 
 	-- Two rows of tabs to avoid overlap with many tabs
-	local x, yRow, col = 0, 0, 0
+	local x, yRow = 0, 0
 	for _, name in ipairs(TAB_ORDER) do
 		local btn = CreateFrame("Button", nil, tabBar, "UIPanelButtonTemplate")
 		local label = L(labelKeyFor(name))
@@ -163,21 +173,49 @@ function MainFrame.Create()
 		end)
 		private.tabs[name] = btn
 		x = x + tw + 4
-		col = col + 1
 	end
 
-	local content = CreateFrame("Frame", nil, f, BackdropTemplateMixin and "BackdropTemplate" or nil)
-	content:SetPoint("TOPLEFT", 12, -100)
-	content:SetPoint("BOTTOMRIGHT", -12, 12)
+	-- Visual panel (backdrop). Render host is a SEPARATE child so ClearHost
+	-- never touches BackdropTemplate NineSlice / edge children.
+	local panel = CreateFrame("Frame", nil, f, BackdropTemplateMixin and "BackdropTemplate" or nil)
+	panel:SetPoint("TOPLEFT", 12, -100)
+	panel:SetPoint("BOTTOMRIGHT", -12, 12)
 	if BackdropTemplateMixin then
-		Widgets.AddBackdrop(content, Theme.COLORS.panel)
+		Widgets.AddBackdrop(panel, Theme.COLORS.panel)
 	end
+	private.panel = panel
+
+	local content = CreateFrame("Frame", "WoWSmartTSMContentHost", panel)
+	content:SetPoint("TOPLEFT", 6, -6)
+	content:SetPoint("BOTTOMRIGHT", -6, 6)
+	content:SetFrameLevel((panel.GetFrameLevel and panel:GetFrameLevel() or 0) + 10)
+	content:Show()
 	private.content = content
 	private.frame = f
 
+	f:SetScript("OnShow", function()
+		local tab = private.active or defaultTabForRole()
+		MainFrame.SelectTab(tab)
+	end)
+
 	f:SetScript("OnSizeChanged", function()
 		MainFrame.SavePosition()
-		if private.active then
+		if not f:IsShown() or not private.active then
+			return
+		end
+		-- Debounce: one re-render per size gesture, not per pixel.
+		private.sizeDirty = true
+		private.renderGen = (private.renderGen or 0) + 1
+		local gen = private.renderGen
+		if C_Timer and C_Timer.After then
+			C_Timer.After(0.05, function()
+				if gen == private.renderGen and private.sizeDirty and f:IsShown() then
+					private.sizeDirty = false
+					MainFrame.SelectTab(private.active)
+				end
+			end)
+		else
+			private.sizeDirty = false
 			MainFrame.SelectTab(private.active)
 		end
 	end)
@@ -185,7 +223,8 @@ function MainFrame.Create()
 	local scale = (WoWSmartTSM_DB and WoWSmartTSM_DB.settings and WoWSmartTSM_DB.settings.frame.scale) or 1
 	f:SetScale(scale)
 
-	MainFrame.SelectTab(defaultTabForRole())
+	-- Defer first paint until OnShow so host width/height are valid.
+	private.active = defaultTabForRole()
 	return f
 end
 
@@ -195,6 +234,5 @@ function MainFrame.Toggle()
 		f:Hide()
 	else
 		f:Show()
-		MainFrame.SelectTab(private.active or defaultTabForRole())
 	end
 end

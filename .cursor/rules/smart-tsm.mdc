@@ -12,3 +12,4 @@ globs:
 4. Offline tests ≠ in-game tests.
 5. Visual changes after owner acceptance need owner approval.
 6. No invented Cursor APIs; repair runner stays disabled by default.
+7. **Branches:** only durable `main` (owner-gated) and `dev` (sole development). Work on `dev`. No new feature/bugfix/hotfix/release branches, no parallel mutating agents, no auto-merge to `main`, no force-push.

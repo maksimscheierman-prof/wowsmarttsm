@@ -50,3 +50,9 @@ backups/
 # OS
 Desktop.ini
 $RECYCLE.BIN/
+
+# Keep git bundles under artifacts/git tracked; ignore other artifacts noise
+artifacts/*
+!artifacts/git/
+!artifacts/git/**
+

@@ -2,6 +2,26 @@
 
 Instructions for Cursor (and other) coding agents working on this repository.
 
+## Durable branch policy (mandatory)
+
+**Only two durable branches:**
+
+| Branch | Role |
+|--------|------|
+| `main` | Owner-gated stable / released versions only |
+| `dev` | Sole active development branch |
+
+Rules for every agent session (Cursor, Codex, Claude, etc.):
+
+- Develop **directly on `dev`**. Features, bugfixes, tests, and docs land on `dev`.
+- **Do not** create new `feature/*`, `bugfix/*`, `hotfix/*`, or `release/*` branches.
+- **Do not** create new git worktrees with their own development branches.
+- **Do not** run parallel agents that independently mutate the same code.
+- **Never** auto-merge to `main`. Owner approval required for any `main` update (PR from `dev`).
+- **Never** force-push. **Never** rebase published history.
+- Historical branches (e.g. `feature/wow-smart-tsm-v1`) may be kept until the owner explicitly approves deletion.
+- Before any git action that could lose unique commits: STOP and ask the owner.
+
 ## Always do first
 
 1. Read `diagnostics/health-status.json` if present.
@@ -37,8 +57,10 @@ Instructions for Cursor (and other) coding agents working on this repository.
 ## Preferred workflow
 
 ```text
-doctor → diagnose → fix → test → package → install (if WoW not writing locks) → verify-install → commit
+checkout dev → doctor → diagnose → fix → test → package → install (if WoW not writing locks) → verify-install → commit on dev → push dev (if authorized)
 ```
+
+`main` stays untouched until the owner merges a reviewed PR from `dev`.
 
 ## Useful commands
 
@@ -57,6 +79,8 @@ python tools/verify_install.py
 ## Owner-gated
 
 - Visual acceptance of UI
+- Merge / release to `main`
+- Deleting historical feature branches
 - Replacing original TSM with a fork
 - Changing install paths outside the project / configured WoW Forever AddOns folder
 - Enabling optional Cursor repair runner
