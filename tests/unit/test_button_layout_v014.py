@@ -85,6 +85,6 @@ def test_bulk_review_failed_ux_message():
     assert 'eval.status == "FAILED"' in text
 
 
-def test_version_01x():
+def test_version_semver():
     ver = (ADDON_SRC / "Core" / "Version.lua").read_text(encoding="utf-8")
-    assert 'STRING = "0.1.' in ver
+    assert 'STRING = "0.' in ver

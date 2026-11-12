@@ -50,15 +50,28 @@ function VendorTab.Render(parent)
 	Layout.HeaderTitle(root.header, L("VENDOR") .. " — Dry-Run", (bw or 160) + 12)
 
 	local stack = Layout.BodyStack(root)
+	local mailN = 0
+	for _, d in ipairs(ScanService.GetLastResults() or {}) do
+		if d and (d.inventoryAction == C.ACTIONS.MAIL_TO_BANK or d.inventoryAction == C.ACTIONS.HOLD_AT_BANK) then
+			mailN = mailN + 1
+		end
+	end
 	Layout.AddText(
 		stack,
 		string.format(
-			"Vendor-Kandidaten: %d  |  Dry-Run: %s  |  AH-Posten gesamt: %d  |  Bewertung: %s",
+			"Vendor-Kandidaten: %d  |  Dry-Run: %s  |  AH-Posten: %d  |  Mail-Kandidaten: %d  |  Status: %s",
 			#candidates,
 			tostring(dryRun),
 			sum.toPost or 0,
+			mailN,
 			tostring(eval.status or "?")
 		),
+		"GameFontHighlightSmall",
+		Theme.COLORS.muted
+	)
+	Layout.AddText(
+		stack,
+		"Vendor-Kandidaten werden nicht gleichzeitig als Mail/Hold verarbeitet (getrennte inventoryAction).",
 		"GameFontHighlightSmall",
 		Theme.COLORS.muted
 	)

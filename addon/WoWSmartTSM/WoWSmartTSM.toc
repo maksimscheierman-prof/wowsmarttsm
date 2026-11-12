@@ -1,9 +1,9 @@
 ## Interface: 16001, 120105, 50504, 20506, 11509
 ## Title: |cff4ecdc4WoW Smart TSM|r
-## Notes: Intelligent AH companion for TradeSkillMaster — classify, price, explain skips, bulk review, vendor safely.
-## Notes-deDE: Intelligenter AH-Begleiter für TradeSkillMaster — klassifizieren, preisen, Skips erklären, Sammelreview, Vendor sicher.
+## Notes: Multi-character inventory & auction companion for TradeSkillMaster — Main cleanup, bank mail, vendor safely.
+## Notes-deDE: Multi-Charakter Inventar- & Auktions-Begleiter für TradeSkillMaster — Aufräumen, Bank-Post, Händler sicher.
 ## Author: maksimscheierman-prof
-## Version: 0.1.5
+## Version: 0.2.0
 ## SavedVariables: WoWSmartTSM_DB, WoWSmartTSM_Diagnostics
 ## OptionalDeps: TradeSkillMaster, TradeSkillMaster_AppHelper, BugSack, !BugGrabber
 ## DefaultState: enabled
@@ -24,7 +24,7 @@ Util\ItemUtil.lua
 Util\TimeUtil.lua
 Util\SafeCall.lua
 
-# Diagnostics first (must load before services that log)
+# Diagnostics first
 Diagnostics\ErrorCodes.lua
 Diagnostics\RingBuffer.lua
 Diagnostics\Privacy.lua
@@ -47,38 +47,49 @@ TSM\Groups.lua
 TSM\Operations.lua
 TSM\SkipMap.lua
 
-# Engines (Pricing before Classify)
+# Engines
 Rules\ItemProfile.lua
 Rules\Protect.lua
 Rules\HoldPolicy.lua
+Rules\ItemRules.lua
+Rules\Consumables.lua
+Rules\CraftingReserve.lua
 Pricing\Config.lua
 Pricing\Model.lua
 Pricing\Recommend.lua
 Rules\Classify.lua
+Rules\ActionDecide.lua
 Rules\SkipAnalyzer.lua
 Rules\Engine.lua
 
 # Services
 Core\DB.lua
+Core\CharacterProfiles.lua
 Core\Undo.lua
 Core\ScanService.lua
 Core\AutoEval.lua
+Core\CleanupService.lua
+Core\MailService.lua
 Core\VendorService.lua
 Core\History.lua
 Core\Health.lua
 Core\Commands.lua
 
-# UI (Layout before tabs)
+# UI
 UI\Theme.lua
 UI\Widgets.lua
 UI\Layout.lua
 UI\MainFrame.lua
+UI\CleanupTab.lua
 UI\Dashboard.lua
 UI\BulkReview.lua
 UI\PostingTab.lua
+UI\MailTab.lua
 UI\SkippedTab.lua
 UI\VendorTab.lua
 UI\HoldTab.lua
+UI\CharactersTab.lua
+UI\RulesTab.lua
 UI\HistoryTab.lua
 UI\SettingsTab.lua
 UI\DiagnosticsTab.lua

@@ -9,11 +9,15 @@ from paths import ADDON_SRC
 
 
 TABS = [
+    "CleanupTab.lua",
     "Dashboard.lua",
     "PostingTab.lua",
+    "MailTab.lua",
     "SkippedTab.lua",
     "VendorTab.lua",
     "HoldTab.lua",
+    "CharactersTab.lua",
+    "RulesTab.lua",
     "HistoryTab.lua",
     "SettingsTab.lua",
     "DiagnosticsTab.lua",
@@ -66,7 +70,7 @@ def test_toc_loads_layout_before_tabs():
     toc = (ADDON_SRC / "WoWSmartTSM.toc").read_text(encoding="utf-8")
     assert "UI\\Layout.lua" in toc
     assert "Core\\Health.lua" in toc
-    assert "## Version: 0.1." in toc
+    assert "## Version: 0." in toc
     layout_i = toc.index("UI\\Layout.lua")
     dash_i = toc.index("UI\\Dashboard.lua")
     assert layout_i < dash_i
@@ -75,9 +79,9 @@ def test_toc_loads_layout_before_tabs():
     assert health_i < addon_i
 
 
-def test_mainframe_has_eight_tabs_and_resize_rerender():
+def test_mainframe_has_core_tabs_and_resize_rerender():
     mf = (ADDON_SRC / "UI" / "MainFrame.lua").read_text(encoding="utf-8")
-    for tab in ("Dashboard", "Posting", "Skipped", "Vendor", "Hold", "History", "Settings", "Diagnostics"):
+    for tab in ("Cleanup", "Dashboard", "Posting", "Mail", "Vendor", "Hold", "Characters", "Rules", "History", "Settings", "Diagnostics"):
         assert f'"{tab}"' in mf
     assert "OnSizeChanged" in mf
     assert "SelectTab" in mf

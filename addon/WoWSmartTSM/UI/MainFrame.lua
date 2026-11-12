@@ -2,6 +2,7 @@ local Smart = WoWSmartTSM
 local Locale = Smart:Module("Locale")
 local Theme = Smart:Module("Theme")
 local Widgets = Smart:Module("Widgets")
+local C = Smart:Module("Constants")
 local MainFrame = Smart:Module("MainFrame")
 
 local private = {
@@ -12,12 +13,17 @@ local private = {
 	tabBar = nil,
 }
 
+-- Extended tab set for v0.2; role picks default
 local TAB_ORDER = {
+	"Cleanup",
 	"Dashboard",
 	"Posting",
-	"Skipped",
+	"Mail",
 	"Vendor",
 	"Hold",
+	"Skipped",
+	"Characters",
+	"Rules",
 	"History",
 	"Settings",
 	"Diagnostics",
@@ -25,16 +31,32 @@ local TAB_ORDER = {
 
 local function labelKeyFor(name)
 	local map = {
+		Cleanup = "CLEANUP",
 		Dashboard = "DASHBOARD",
 		Posting = "POSTING",
+		Mail = "MAIL",
 		Skipped = "SKIPPED",
 		Vendor = "VENDOR",
 		Hold = "HOLD",
+		Characters = "CHARACTERS",
+		Rules = "RULES",
 		History = "HISTORY",
 		Settings = "SETTINGS",
 		Diagnostics = "DIAGNOSTICS",
 	}
 	return map[name] or name:upper()
+end
+
+local function defaultTabForRole()
+	local CP = Smart:GetModule("CharacterProfiles")
+	local role = CP and CP.GetRole and CP.GetRole() or C.ROLES.MAIN
+	if role == C.ROLES.BANK then
+		return "Posting"
+	end
+	if role == C.ROLES.MAIN then
+		return "Cleanup"
+	end
+	return "Dashboard"
 end
 
 function MainFrame.Get()
@@ -81,7 +103,7 @@ function MainFrame.Create()
 	local L = Locale.T
 	local s = (WoWSmartTSM_DB and WoWSmartTSM_DB.settings and WoWSmartTSM_DB.settings.frame) or {}
 	local f = CreateFrame("Frame", "WoWSmartTSMFrame", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-	f:SetSize(s.width or 960, s.height or 640)
+	f:SetSize(s.width or 980, s.height or 660)
 	f:SetPoint(s.point or "CENTER", UIParent, s.point or "CENTER", s.x or 0, s.y or 0)
 	f:SetFrameStrata("HIGH")
 	f:SetMovable(true)
@@ -94,9 +116,9 @@ function MainFrame.Create()
 	end)
 	f:SetResizable(true)
 	if f.SetResizeBounds then
-		f:SetResizeBounds(760, 500, 1400, 900)
+		f:SetResizeBounds(780, 520, 1400, 900)
 	elseif f.SetMinResize then
-		f:SetMinResize(760, 500)
+		f:SetMinResize(780, 520)
 	end
 	if BackdropTemplateMixin then
 		Widgets.AddBackdrop(f, Theme.COLORS.bg)
@@ -120,24 +142,32 @@ function MainFrame.Create()
 	local tabBar = CreateFrame("Frame", nil, f)
 	tabBar:SetPoint("TOPLEFT", 12, -48)
 	tabBar:SetPoint("TOPRIGHT", -12, -48)
-	tabBar:SetHeight(26)
+	tabBar:SetHeight(48)
 	private.tabBar = tabBar
 
-	local x = 0
+	-- Two rows of tabs to avoid overlap with many tabs
+	local x, yRow, col = 0, 0, 0
 	for _, name in ipairs(TAB_ORDER) do
 		local btn = CreateFrame("Button", nil, tabBar, "UIPanelButtonTemplate")
-		btn:SetSize(108, 24)
-		btn:SetPoint("LEFT", tabBar, "LEFT", x, 0)
-		btn:SetText(L(labelKeyFor(name)))
+		local label = L(labelKeyFor(name))
+		local tw = math.min(108, math.max(72, (#label * 6) + 16))
+		btn:SetSize(tw, 22)
+		if x + tw > (tabBar:GetWidth() > 0 and tabBar:GetWidth() or 900) then
+			yRow = 24
+			x = 0
+		end
+		btn:SetPoint("TOPLEFT", tabBar, "TOPLEFT", x, -yRow)
+		btn:SetText(label)
 		btn:SetScript("OnClick", function()
 			MainFrame.SelectTab(name)
 		end)
 		private.tabs[name] = btn
-		x = x + 110
+		x = x + tw + 4
+		col = col + 1
 	end
 
 	local content = CreateFrame("Frame", nil, f, BackdropTemplateMixin and "BackdropTemplate" or nil)
-	content:SetPoint("TOPLEFT", 12, -80)
+	content:SetPoint("TOPLEFT", 12, -100)
 	content:SetPoint("BOTTOMRIGHT", -12, 12)
 	if BackdropTemplateMixin then
 		Widgets.AddBackdrop(content, Theme.COLORS.panel)
@@ -155,7 +185,7 @@ function MainFrame.Create()
 	local scale = (WoWSmartTSM_DB and WoWSmartTSM_DB.settings and WoWSmartTSM_DB.settings.frame.scale) or 1
 	f:SetScale(scale)
 
-	MainFrame.SelectTab("Dashboard")
+	MainFrame.SelectTab(defaultTabForRole())
 	return f
 end
 
@@ -165,6 +195,6 @@ function MainFrame.Toggle()
 		f:Hide()
 	else
 		f:Show()
-		MainFrame.SelectTab(private.active or "Dashboard")
+		MainFrame.SelectTab(private.active or defaultTabForRole())
 	end
 end

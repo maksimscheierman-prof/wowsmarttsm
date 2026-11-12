@@ -53,18 +53,27 @@ function Dashboard.Render(parent)
 	end
 
 	local stack = Layout.BodyStack(root)
+	local CleanupService = Smart:GetModule("CleanupService")
+	local CP = Smart:GetModule("CharacterProfiles")
+	local clean = CleanupService and CleanupService.Summarize and CleanupService.Summarize(results) or {}
 	Layout.AddText(stack, eval.label or "Status unbekannt", "GameFontHighlight", Theme.COLORS.accent)
+	Layout.AddText(
+		stack,
+		string.format("Rolle=%s | Bank=%s", tostring(CP and CP.GetRole and CP.GetRole()), tostring(CP and CP.GetPrimaryBankDisplay and CP.GetPrimaryBankDisplay() or "—")),
+		"GameFontHighlightSmall",
+		Theme.COLORS.muted
+	)
 	Layout.AddGap(stack, 6)
 	Layout.AddMetricGrid(stack, {
+		{ "Mail→Bank", clean.mailToBank or 0, Theme.COLORS.post },
+		{ "Vendor", clean.vendor or 0, Theme.COLORS.vendor },
+		{ "Keep", clean.keep or 0, Theme.COLORS.muted },
+		{ "Hold→Bank", clean.holdAtBank or 0, Theme.COLORS.hold },
+		{ "Prüfung", clean.review or 0, Theme.COLORS.warn },
 		{ "Quick", quick, Theme.COLORS.post },
 		{ "Profit", profit, Theme.COLORS.post },
 		{ "Rare", rare, Theme.COLORS.hold },
-		{ "Optimierbar", sum.optimizable, Theme.COLORS.skip },
-		{ L("VENDOR"), sum.vendor, Theme.COLORS.vendor },
-		{ L("HOLD"), sum.hold, Theme.COLORS.hold },
 		{ L("EXPECTED_NET"), Money.Format(sum.ahNet, true) },
-		{ "Vendorwert", Money.Format(sum.vendorValue, true) },
-		{ L("DATA_QUALITY"), string.format("%.0f%%", (sum.dataQualityAvg or 0) * 100) },
 		{ "Need Live AH", sum.needsLiveCompetition or 0, Theme.COLORS.warn },
 	}, 5)
 

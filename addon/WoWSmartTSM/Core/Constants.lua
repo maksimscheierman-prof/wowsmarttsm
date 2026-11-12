@@ -2,7 +2,7 @@ local Smart = WoWSmartTSM
 local C = Smart:Module("Constants")
 
 C.ADDON_DISPLAY_NAME = "WoW Smart TSM"
-C.SV_SCHEMA_VERSION = 1
+C.SV_SCHEMA_VERSION = 2
 C.DIAG_SCHEMA_VERSION = 1
 C.LOG_RING_SIZE = 500
 C.HISTORY_RING_SIZE = 200
@@ -19,6 +19,7 @@ C.GROUPS = {
 	REVIEW = "Smart TSM`Manual Review",
 }
 
+-- AH / economic strategy (independent of transport)
 C.STRATEGIES = {
 	QUICK_SELL = "QUICK_SELL",
 	PROFIT_SELL = "PROFIT_SELL",
@@ -26,6 +27,22 @@ C.STRATEGIES = {
 	VENDOR = "VENDOR",
 	HOLD = "HOLD",
 	MANUAL_REVIEW = "MANUAL_REVIEW",
+}
+
+-- Inventory / transport action (independent of strategy)
+C.ACTIONS = {
+	MAIL_TO_BANK = "MAIL_TO_BANK",
+	VENDOR = "VENDOR",
+	KEEP = "KEEP",
+	IGNORE = "IGNORE",
+	HOLD_AT_BANK = "HOLD_AT_BANK",
+	MANUAL_REVIEW = "MANUAL_REVIEW",
+}
+
+C.ROLES = {
+	MAIN = "MAIN",
+	BANK = "BANK",
+	MANUAL = "MANUAL",
 }
 
 C.SEVERITY = {
@@ -52,9 +69,12 @@ C.QUALITY = {
 	LEGENDARY = 5,
 }
 
+-- Mail (Classic/Forever attachment limit — PARTIAL; confirm at runtime when possible)
+C.MAIL_MAX_ATTACHMENTS = 12
+
 -- Provisional Forever AH economics (configurable; PARTIAL verification)
 C.DEFAULT_AH_CUT = 0.05
-C.DEFAULT_DEPOSIT_RATE = 0.15 -- fraction of vendor or estimated; overridden when live deposit known
+C.DEFAULT_DEPOSIT_RATE = 0.15
 C.DEFAULT_AUCTION_HOURS = 24
 
 C.DATA_MAX_AGE_SECONDS = 48 * 3600

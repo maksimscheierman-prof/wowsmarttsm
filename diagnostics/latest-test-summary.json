@@ -1,8 +1,8 @@
 {
   "mode": "OFFLINE_MOCK",
   "note": "These results are NOT in-game smoke tests.",
-  "passed": 88,
+  "passed": 100,
   "failed": 0,
-  "total": 88,
+  "total": 100,
   "failures": []
 }

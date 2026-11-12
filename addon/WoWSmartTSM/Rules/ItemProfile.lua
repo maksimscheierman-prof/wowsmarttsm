@@ -106,5 +106,9 @@ function ItemProfile.Build(raw)
 		needsLiveCompetition = raw.needsLiveCompetition and true or false,
 		fromAuctionDB = raw.fromAuctionDB ~= false,
 		variantKey = raw.variantKey, -- bonus IDs / suffixes when available
+		bag = raw.bag,
+		slot = raw.slot,
+		link = raw.link,
+		isConsumable = raw.isConsumable,
 	}
 end

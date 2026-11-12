@@ -16,16 +16,29 @@ local function defaultsDB()
 			dataMaxAgeSeconds = C.DATA_MAX_AGE_SECONDS,
 			minExpectedNetCopper = 0,
 			dryRunVendor = true,
-			openUIAfterScan = false, -- /smarttsm scan does not open UI unless enabled
+			openUIAfterScan = false,
 			debug = false,
-			frame = { point = "CENTER", x = 0, y = 0, width = 920, height = 620, scale = 1 },
+			frame = { point = "CENTER", x = 0, y = 0, width = 960, height = 640, scale = 1 },
 			columns = {},
 		},
-		alwaysKeep = {}, -- [itemString] = true
-		reservedCrafting = {}, -- [itemString] = true
+		alwaysKeep = {},
+		reservedCrafting = {},
+		characters = {},
+		profile = {
+			primaryBankKey = nil,
+			bankKeys = {},
+		},
+		itemRules = {
+			account = {},
+			characters = {},
+			sessionIgnore = {},
+		},
+		consumableMins = {},
+		craftingReserves = {},
 		history = {},
 		undoStack = {},
 		lastScan = nil,
+		mailPlans = {},
 	}
 end
 
@@ -46,6 +59,18 @@ end
 local migrationsDB = {
 	[1] = function(db)
 		db.schemaVersion = 1
+		return db
+	end,
+	[2] = function(db)
+		-- v0.2.0 multi-character fields
+		db.characters = db.characters or {}
+		db.profile = db.profile or { primaryBankKey = nil, bankKeys = {} }
+		db.itemRules = db.itemRules or { account = {}, characters = {}, sessionIgnore = {} }
+		db.consumableMins = db.consumableMins or {}
+		db.craftingReserves = db.craftingReserves or {}
+		db.mailPlans = db.mailPlans or {}
+		db.settings = db.settings or {}
+		db.schemaVersion = 2
 		return db
 	end,
 }
@@ -79,6 +104,16 @@ local function migrate(store, migrations, target, label)
 	return store
 end
 
+local function deepMergeMissing(dst, src)
+	for k, v in pairs(src) do
+		if dst[k] == nil then
+			dst[k] = v
+		elseif type(v) == "table" and type(dst[k]) == "table" then
+			deepMergeMissing(dst[k], v)
+		end
+	end
+end
+
 function SV.Init()
 	if type(WoWSmartTSM_DB) ~= "table" then
 		WoWSmartTSM_DB = defaultsDB()
@@ -86,28 +121,17 @@ function SV.Init()
 		local migrated, err = migrate(WoWSmartTSM_DB, migrationsDB, C.SV_SCHEMA_VERSION, "DB")
 		if not migrated then
 			Logger.Error("SV_MIGRATE_FAILED", "SavedVariables", "Init", tostring(err))
-			local backup = WoWSmartTSM_DB
 			WoWSmartTSM_DB = defaultsDB()
 			WoWSmartTSM_DB._corruptBackupMeta = { at = Time.Now(), err = tostring(err) }
-			-- keep minimal reference without exploding size
 			WoWSmartTSM_DB._hadCorrupt = true
 		else
 			WoWSmartTSM_DB = migrated
 		end
 	end
 
-	-- merge missing defaults
-	local def = defaultsDB()
-	for k, v in pairs(def) do
-		if WoWSmartTSM_DB[k] == nil then
-			WoWSmartTSM_DB[k] = v
-		end
-	end
-	for k, v in pairs(def.settings) do
-		if WoWSmartTSM_DB.settings[k] == nil then
-			WoWSmartTSM_DB.settings[k] = v
-		end
-	end
+	deepMergeMissing(WoWSmartTSM_DB, defaultsDB())
+	WoWSmartTSM_DB.settings = WoWSmartTSM_DB.settings or {}
+	deepMergeMissing(WoWSmartTSM_DB.settings, defaultsDB().settings)
 
 	if type(WoWSmartTSM_Diagnostics) ~= "table" then
 		WoWSmartTSM_Diagnostics = defaultsDiag()
@@ -132,8 +156,7 @@ function SV.GetDiagnostics()
 end
 
 function SV.ResetWithBackupHint()
-	local hint = "Backup SavedVariables before reset. Files flush on logout/reload only."
-	return hint
+	return "Backup SavedVariables before reset. Files flush on logout/reload only."
 end
 
 function SV.DoReset()

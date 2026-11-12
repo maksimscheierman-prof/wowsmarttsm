@@ -55,7 +55,6 @@ def test_diagnostics_shows_coverage_and_health():
     assert "Inventarbewertung" in text
 
 
-def test_version_is_at_least_013():
+def test_version_is_semver():
     ver = (ADDON_SRC / "Core" / "Version.lua").read_text(encoding="utf-8")
-    # v0.1.3 introduced eval status clarity; v0.1.4+ keeps it
-    assert 'STRING = "0.1.' in ver
+    assert 'STRING = "0.' in ver

@@ -5,19 +5,19 @@ local UI = Smart:Module("UI")
 
 function UI.RenderTab(name, parent)
 	local map = {
+		Cleanup = "CleanupTab",
 		Dashboard = "Dashboard",
 		Posting = "PostingTab",
+		Mail = "MailTab",
 		Skipped = "SkippedTab",
 		Vendor = "VendorTab",
 		Hold = "HoldTab",
+		Characters = "CharactersTab",
+		Rules = "RulesTab",
 		History = "HistoryTab",
 		Settings = "SettingsTab",
 		Diagnostics = "DiagnosticsTab",
 	}
-	-- Always clear host before render to prevent FontString overlap
-	if Layout and Layout.ClearHost then
-		-- Begin() inside each tab also clears; ensure host is clean if render fails early
-	end
 	local modName = map[name]
 	local mod = modName and Smart:GetModule(modName)
 	if mod and mod.Render then

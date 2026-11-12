@@ -9,6 +9,7 @@ local AutoEval = Smart:Module("AutoEval")
 local PostingCache = Smart:Module("PostingCache")
 local Prices = Smart:Module("Prices")
 local ItemAPI = Smart:Module("ItemAPI")
+local CharacterProfiles = Smart:Module("CharacterProfiles")
 
 local private = {
 	loaded = false,
@@ -80,10 +81,14 @@ local function onLoaded()
 			AutoEval.Request("item_info_received", { "item:" .. tostring(itemId) })
 		end
 	end)
+	pcall(CharacterProfiles.EnsureCurrent)
 	pcall(Commands.Register)
 	pcall(UI.Init)
 	pcall(PostingCache.Init)
-	pcall(AutoEval.Init)
+	local ch = CharacterProfiles.GetCurrent and CharacterProfiles.GetCurrent()
+	if not ch or ch.autoEval ~= false then
+		pcall(AutoEval.Init)
+	end
 	pcall(Prices.VerifyRegisteredSources)
 
 	if not private.loadError then
