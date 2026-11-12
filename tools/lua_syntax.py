@@ -70,6 +70,13 @@ def check_file(path: Path) -> list[str]:
             break
     if depth != 0:
         errors.append(f"block depth residual={depth}")
+    # Forever/Lua: ':' is only valid as a method *call*. Existence checks must use '.'.
+    # Bad:  fs:GetStringWidth and fs:GetStringWidth()
+    # Good: fs.GetStringWidth and fs:GetStringWidth()
+    for i, line in enumerate(text.splitlines(), 1):
+        code = line.split("--", 1)[0]
+        if re.search(r":[A-Za-z_]\w*\s+and\b", code):
+            errors.append(f"line {i}: invalid ':' existence check (use '.' before and)")
     return errors
 
 

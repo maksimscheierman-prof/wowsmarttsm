@@ -1,12 +1,12 @@
 local Smart = WoWSmartTSM
 local MainFrame = Smart:Module("MainFrame")
-local Layout = Smart:Module("Layout")
 local UI = Smart:Module("UI")
 
 local private = {
 	lastTab = nil,
 	lastStatus = nil,
 	emptyRetries = {},
+	chatOnce = {},
 }
 
 local TAB_MAP = {
@@ -35,14 +35,16 @@ local function now()
 	return 0
 end
 
+local function getLayout()
+	return Smart:GetModule("Layout")
+end
+
 local function logUi(codeKey, funcName, message, state)
 	local Logger = Smart:GetModule("Logger")
 	if not Logger then
 		return
 	end
-	local severity = "INFO"
 	if codeKey == "UI_RENDER_FAILED" or codeKey == "UI_CONTENT_EMPTY" or codeKey == "UI_ERROR" then
-		severity = "ERROR"
 		if Logger.Error then
 			Logger.Error(codeKey, "UI", funcName, message, { state = state })
 			return
@@ -51,8 +53,16 @@ local function logUi(codeKey, funcName, message, state)
 	if Logger.Info then
 		Logger.Info(codeKey, "UI", funcName, message, { state = state })
 	elseif Logger.Log then
-		Logger.Log(severity, codeKey, "UI", funcName, message, { state = state })
+		Logger.Log("INFO", codeKey, "UI", funcName, message, { state = state })
 	end
+end
+
+local function chatOnce(key, message)
+	if private.chatOnce[key] then
+		return
+	end
+	private.chatOnce[key] = true
+	print("|cffff6666[SmartTSM]|r " .. tostring(message))
 end
 
 local function moduleStatus(modName)
@@ -64,9 +74,31 @@ local function moduleStatus(modName)
 	}
 end
 
-local function showFallback(parent, title, detail)
-	if not (Layout and Layout.Begin) then
+---Emergency visible text when Layout helpers are unavailable.
+local function emergencyText(parent, title, detail)
+	if not parent or not parent.CreateFontString then
 		return false
+	end
+	local ok = pcall(function()
+		if parent._smartEmergency then
+			parent._smartEmergency:Hide()
+		end
+		local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+		fs:SetPoint("TOPLEFT", 16, -16)
+		fs:SetPoint("TOPRIGHT", -16, -16)
+		fs:SetJustifyH("LEFT")
+		fs:SetWordWrap(true)
+		fs:SetText(tostring(title or "UI-Fehler") .. "\n\n" .. tostring(detail or ""))
+		fs:Show()
+		parent._smartEmergency = fs
+	end)
+	return ok
+end
+
+local function showFallback(parent, title, detail)
+	local Layout = getLayout()
+	if not (Layout and type(Layout.Begin) == "function") then
+		return emergencyText(parent, title, detail)
 	end
 	local ok = pcall(function()
 		local root = Layout.Begin(parent)
@@ -76,7 +108,10 @@ local function showFallback(parent, title, detail)
 		Layout.FinishStack(stack)
 		Layout.FooterText(root.footer, "Diagnose-Tab bleibt erreichbar.")
 	end)
-	return ok
+	if not ok then
+		return emergencyText(parent, title, detail)
+	end
+	return true
 end
 
 function UI.GetLastRenderStatus()
@@ -85,12 +120,14 @@ end
 
 function UI.RenderTab(name, parent)
 	local started = now()
+	local Layout = getLayout()
 	local modName = TAB_MAP[name]
 	local status = {
 		tab = name,
 		modName = modName,
 		startedAt = started,
 		module = moduleStatus(modName),
+		layoutBegin = Layout ~= nil and type(Layout.Begin) == "function",
 		renderStatus = "STARTED",
 		error = nil,
 		empty = false,
@@ -108,6 +145,15 @@ function UI.RenderTab(name, parent)
 		return status
 	end
 
+	if not status.layoutBegin then
+		status.renderStatus = "FAILED"
+		status.error = "Layout.Begin is nil — UI/Layout.lua failed to load (check Lua parse errors)"
+		logUi("UI_RENDER_FAILED", "RenderTab", status.error, status)
+		chatOnce("layout_begin_nil", status.error)
+		showFallback(parent, "Layout nicht geladen", status.error)
+		return status
+	end
+
 	local mod = modName and Smart:GetModule(modName)
 	if not mod or type(mod.Render) ~= "function" then
 		status.renderStatus = "FAILED"
@@ -122,6 +168,8 @@ function UI.RenderTab(name, parent)
 		status.renderStatus = "FAILED"
 		status.error = tostring(err)
 		logUi("UI_RENDER_FAILED", "RenderTab", status.error, status)
+		-- One chat line per distinct error fingerprint (Logger also dedupes).
+		chatOnce("render:" .. tostring(name) .. ":" .. tostring(err), "E5005 " .. tostring(err))
 		showFallback(parent, "UI-Fehler", status.error)
 		return status
 	end
@@ -134,7 +182,6 @@ function UI.RenderTab(name, parent)
 	if not hasContent then
 		status.renderStatus = "EMPTY"
 		logUi("UI_CONTENT_EMPTY", "RenderTab", "unexpected empty content", status)
-		-- Single recovery attempt only (no unbounded retries).
 		local retries = private.emptyRetries[name] or 0
 		if retries < 1 then
 			private.emptyRetries[name] = retries + 1

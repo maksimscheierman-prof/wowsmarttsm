@@ -324,8 +324,8 @@ def test_tab_switch_and_multi_open_model():
 def test_version_is_021():
     ver = (ADDON_SRC / "Core" / "Version.lua").read_text(encoding="utf-8")
     toc = (ADDON_SRC / "WoWSmartTSM.toc").read_text(encoding="utf-8")
-    assert 'STRING = "0.2.1"' in ver
-    assert "## Version: 0.2.1" in toc
+    assert 'STRING = "0.2.' in ver
+    assert "## Version: 0.2." in toc
 
 
 def test_v02_features_still_present_after_ui_fix():

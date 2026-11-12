@@ -3,11 +3,12 @@ local Theme = Smart:Module("Theme")
 local Layout = Smart:Module("Layout")
 
 --[[
-  Robust tab content layout (v0.2.1):
+  Robust tab content layout (v0.2.2):
   - Replace managed _smartRoot each render
   - Never mass-unparent host children (BackdropTemplate NineSlice must stay)
-  - Explicit size fallbacks when host reports 0×0 while hidden
+  - Explicit size fallbacks when host reports 0x0 while hidden
   - Header / body / footer regions with measured stacks
+  - Existence checks use '.' not ':' (':' is call-only in Lua)
 ]]
 
 local PADDING = 14
@@ -401,7 +402,8 @@ end
 local function truncateTextToWidth(fs, fullText, maxWidth)
 	local text = tostring(fullText or "")
 	fs:SetText(text)
-	local sw = fs:GetStringWidth and fs:GetStringWidth() or (#text * 7)
+	-- Use '.' for existence check; ':' is only valid as a call in Lua.
+	local sw = (fs.GetStringWidth and fs:GetStringWidth()) or (#text * 7)
 	if not maxWidth or maxWidth <= 8 or sw <= maxWidth then
 		return text, false
 	end
@@ -412,7 +414,7 @@ local function truncateTextToWidth(fs, fullText, maxWidth)
 		local mid = math.floor((lo + hi) / 2)
 		local candidate = text:sub(1, mid) .. ell
 		fs:SetText(candidate)
-		local cw = fs:GetStringWidth and fs:GetStringWidth() or (#candidate * 7)
+		local cw = (fs.GetStringWidth and fs:GetStringWidth()) or (#candidate * 7)
 		if cw <= maxWidth then
 			best = candidate
 			lo = mid + 1

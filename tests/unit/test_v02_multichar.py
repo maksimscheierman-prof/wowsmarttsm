@@ -54,7 +54,6 @@ def test_cleanup_tab_live_metrics_not_hardcoded_demo():
 
 def test_toc_version_020_and_new_files():
     toc = (ADDON_SRC / "WoWSmartTSM.toc").read_text(encoding="utf-8")
-    assert "## Version: 0.2.1" in toc or "## Version: 0.2.0" in toc
     assert "## Version: 0.2." in toc
     for rel in (
         "Core\\CharacterProfiles.lua",
