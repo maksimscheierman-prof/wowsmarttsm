@@ -3,6 +3,10 @@ local SlashDiag = Smart:Module("SlashDiag")
 local Time = Smart:Module("TimeUtil")
 local Commands = Smart:Module("Commands")
 
+local private = {
+	registered = false,
+}
+
 local function openUI()
 	local UI = Smart:GetModule("UI")
 	if UI and UI.Toggle then
@@ -36,10 +40,12 @@ function Commands.Handle(msg)
 			realm and Time.ISO(realm) or "unknown",
 			region and Time.ISO(region) or "unknown"
 		))
+		print("|cff4ecdc4[SmartTSM]|r Slash registered=" .. tostring(Commands.IsRegistered()))
 	elseif cmd == "errors" then
 		SlashDiag.Errors(tonumber(rest) or 15)
 	elseif cmd == "diagnose" then
 		SlashDiag.Diagnose()
+		print("|cff4ecdc4[SmartTSM]|r Slash registered=" .. tostring(Commands.IsRegistered()))
 	elseif cmd == "debug" then
 		SlashDiag.DebugToggle()
 	elseif cmd == "reset" then
@@ -73,10 +79,31 @@ function Commands.Handle(msg)
 	end
 end
 
+function Commands.IsRegistered()
+	return private.registered == true
+		and type(_G.SlashCmdList) == "table"
+		and type(_G.SlashCmdList.SMARTTSM) == "function"
+		and _G.SLASH_SMARTTSM1 == "/smarttsm"
+end
+
 function Commands.Register()
-	SLASH_SMARTTSM1 = "/smarttsm"
-	SLASH_SMARTTSM2 = "/wsmarttsm"
-	SlashCmdList["SMARTTSM"] = function(msg)
-		Commands.Handle(msg)
+	-- Idempotent: safe to call from ADDON_LOADED and PLAYER_LOGIN fallback
+	_G.SLASH_SMARTTSM1 = "/smarttsm"
+	_G.SLASH_SMARTTSM2 = "/wsmarttsm"
+	if type(_G.SlashCmdList) ~= "table" then
+		-- Extremely defensive: should always exist in WoW
+		_G.SlashCmdList = _G.SlashCmdList or {}
 	end
+	_G.SlashCmdList["SMARTTSM"] = function(msg)
+		local ok, err = pcall(Commands.Handle, msg)
+		if not ok then
+			print("|cffff6666[SmartTSM]|r slash error: " .. tostring(err))
+			local Logger = Smart:GetModule("Logger")
+			if Logger and Logger.Error then
+				Logger.Error("UI_ERROR", "Commands", "SlashCmd", tostring(err))
+			end
+		end
+	end
+	private.registered = true
+	return true
 end

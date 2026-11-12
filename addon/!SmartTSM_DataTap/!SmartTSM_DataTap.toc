@@ -2,7 +2,7 @@
 ## Title: |cff4ecdc4SmartTSM DataTap|r
 ## Notes: Captures TradeSkillMaster AppHelper AuctionDB downloadTime for WoW Smart TSM freshness display. Does not modify TSM.
 ## Author: maksimscheierman-prof
-## Version: 0.1.1
+## Version: 0.1.2
 ## Dependencies: TradeSkillMaster
 ## LoadWith: TradeSkillMaster
 ## DefaultState: enabled

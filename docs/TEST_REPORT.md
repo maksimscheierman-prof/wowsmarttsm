@@ -4,7 +4,7 @@
 
 Run: `python tools/test_runner.py --all`
 
-**Latest run (2026-11-12, v0.1.1):** `43 passed, 0 failed` — mode `OFFLINE_MOCK`.
+**Latest run (2026-11-12, v0.1.2):** `50 passed, 0 failed` — mode `OFFLINE_MOCK`.
 
 Categories covered:
 

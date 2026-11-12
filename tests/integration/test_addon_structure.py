@@ -64,3 +64,15 @@ def test_prices_use_tsm_api_sources():
         assert src in text
     assert "GetCustomPriceValue" in text
     assert "ToItemString" in text
+
+
+def test_datatap_p0_wrapper_safe():
+    import re
+
+    tap = (DATATAP_SRC / "DataTap.lua").read_text(encoding="utf-8")
+    code = re.sub(r"--(?!\[\[).*$", "", tap, flags=re.M)
+    code = re.sub(r"--\[\[.*?\]\]", "", code, flags=re.S)
+    assert "__smartTSMWrapped" not in code
+    assert "SmartTSM_DataTap_WrapLoader" in tap
+    assert "private.wrappedLoader" in tap
+    assert "private.onUpdateActive" in tap

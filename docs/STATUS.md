@@ -4,7 +4,7 @@
 |------|--------|
 | Repo / feature branch | `feature/wow-smart-tsm-v1` |
 | Audit TSM Forever | Done — TSM v4.15.6, region EU-Forever |
-| Companion addon | **v0.1.1** — TSM_API AuctionDB reeval, no duplicate AH scans |
+| Companion addon | **v0.1.2** — DataTap P0 wrapper fix + slash registration harden |
 | DataTap | `!SmartTSM_DataTap` for AppHelper downloadTime |
 | Diagnostics + watchdog | Implemented |
 | Rules / Hold / Pricing | Implemented + offline tests (unchanged policy) |
