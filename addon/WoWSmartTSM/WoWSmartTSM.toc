@@ -3,7 +3,7 @@
 ## Notes: Intelligent AH companion for TradeSkillMaster — classify, price, explain skips, bulk review, vendor safely.
 ## Notes-deDE: Intelligenter AH-Begleiter für TradeSkillMaster — klassifizieren, preisen, Skips erklären, Sammelreview, Vendor sicher.
 ## Author: maksimscheierman-prof
-## Version: 0.1.4
+## Version: 0.1.5
 ## SavedVariables: WoWSmartTSM_DB, WoWSmartTSM_Diagnostics
 ## OptionalDeps: TradeSkillMaster, TradeSkillMaster_AppHelper, BugSack, !BugGrabber
 ## DefaultState: enabled

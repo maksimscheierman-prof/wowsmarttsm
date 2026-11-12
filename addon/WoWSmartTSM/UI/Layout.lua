@@ -61,25 +61,29 @@ function Layout.Begin(host)
 	return root
 end
 
-function Layout.HeaderTitle(header, text)
+function Layout.HeaderTitle(header, text, rightReserve)
 	local fs = header:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	fs:SetPoint("TOPLEFT", 0, 0)
-	fs:SetPoint("RIGHT", header, "RIGHT", -160, 0)
+	fs:SetPoint("RIGHT", header, "RIGHT", -(rightReserve or 200), 0)
 	fs:SetJustifyH("LEFT")
+	fs:SetWordWrap(false)
 	fs:SetText(text or "")
 	fs:SetTextColor(Theme.COLORS.text[1], Theme.COLORS.text[2], Theme.COLORS.text[3], 1)
 	return fs
 end
 
+---Header action button sized to fit its label. Returns button, width.
 function Layout.HeaderButton(header, text, onClick)
+	local label = text or ""
+	local w = Layout.MeasureButtonWidth(label, 140, 300)
 	local btn = CreateFrame("Button", nil, header, "UIPanelButtonTemplate")
-	btn:SetSize(150, 24)
+	btn:SetSize(w, 24)
 	btn:SetPoint("TOPRIGHT", 0, 0)
-	btn:SetText(text or "")
+	btn:SetText(label)
 	if onClick then
 		btn:SetScript("OnClick", onClick)
 	end
-	return btn
+	return btn, w
 end
 
 function Layout.FooterText(footer, text)
@@ -284,13 +288,39 @@ function Layout.AddMetricGrid(stack, metrics, cols)
 	return grid
 end
 
----Simple table: header + rows inside an optional scroll child.
+local function truncateTextToWidth(fs, fullText, maxWidth)
+	local text = tostring(fullText or "")
+	fs:SetText(text)
+	local sw = fs:GetStringWidth and fs:GetStringWidth() or (#text * 7)
+	if not maxWidth or maxWidth <= 8 or sw <= maxWidth then
+		return text, false
+	end
+	local ell = "…"
+	local lo, hi = 1, #text
+	local best = ell
+	while lo <= hi do
+		local mid = math.floor((lo + hi) / 2)
+		local candidate = text:sub(1, mid) .. ell
+		fs:SetText(candidate)
+		local cw = fs:GetStringWidth and fs:GetStringWidth() or (#candidate * 7)
+		if cw <= maxWidth then
+			best = candidate
+			lo = mid + 1
+		else
+			hi = mid - 1
+		end
+	end
+	fs:SetText(best)
+	return best, true
+end
+
+---Table without nested ScrollFrame — body scroll (BodyStack) handles overflow.
+---Avoids duplicate scroll buttons when tables sit inside a scrolling body.
 function Layout.AddTable(stack, columns, rows, opts)
 	opts = opts or {}
 	Layout.StackEnsureWidth(stack)
 	local rowH = opts.rowHeight or 22
 	local headerH = 22
-	local maxBody = opts.maxHeight or 280
 	local tableWidth = stack.width
 
 	local wrap = CreateFrame("Frame", nil, stack.parent)
@@ -311,49 +341,64 @@ function Layout.AddTable(stack, columns, rows, opts)
 		x = x + (col.width or 80)
 	end
 
-	local bodyH = math.min(maxBody, math.max(rowH, #rows * rowH))
-	local scroll = CreateFrame("ScrollFrame", nil, wrap, "UIPanelScrollFrameTemplate")
-	scroll:SetPoint("TOPLEFT", 0, -headerH - 2)
-	scroll:SetSize(tableWidth - 22, bodyH)
-	local child = CreateFrame("Frame", nil, scroll)
-	child:SetSize(tableWidth - 24, math.max(bodyH, #rows * rowH))
-	scroll:SetScrollChild(child)
+	local body = CreateFrame("Frame", nil, wrap)
+	body:SetPoint("TOPLEFT", 0, -headerH - 2)
+	body:SetSize(tableWidth, math.max(rowH, #rows * rowH))
 
 	for i, row in ipairs(rows) do
-		local line = CreateFrame("Frame", nil, child)
-		line:SetSize(tableWidth - 24, rowH)
+		local line = CreateFrame("Frame", nil, body)
+		line:SetSize(tableWidth, rowH)
 		line:SetPoint("TOPLEFT", 0, -((i - 1) * rowH))
 		local cx = 0
+		local cellTips = {}
 		for ci, col in ipairs(columns) do
 			local fs = line:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+			local colW = (col.width or 80) - 4
 			fs:SetPoint("LEFT", line, "LEFT", cx + 2, 0)
-			fs:SetWidth((col.width or 80) - 4)
+			fs:SetWidth(colW)
 			fs:SetJustifyH(col.align or "LEFT")
 			fs:SetWordWrap(false)
 			local val = row[ci]
+			local fullText
 			if type(val) == "table" then
-				fs:SetText(tostring(val.text or ""))
+				fullText = tostring(val.fullText or val.text or "")
+				local shown, truncated = truncateTextToWidth(fs, fullText, colW)
 				if val.color then
 					fs:SetTextColor(val.color[1], val.color[2], val.color[3], 1)
 				end
+				if truncated or val.tooltip then
+					cellTips[#cellTips + 1] = val.tooltip or fullText
+				end
 			else
-				fs:SetText(tostring(val or ""))
+				fullText = tostring(val or "")
+				local _, truncated = truncateTextToWidth(fs, fullText, colW)
+				if truncated then
+					cellTips[#cellTips + 1] = fullText
+				end
 			end
 			cx = cx + (col.width or 80)
 		end
-		local needMouse = opts.onEnter or opts.onLeave or opts.onClick
+		local needMouse = opts.onEnter or opts.onLeave or opts.onClick or #cellTips > 0
 		if needMouse then
 			line:EnableMouse(true)
-			if opts.onEnter then
-				line:SetScript("OnEnter", function()
+			line:SetScript("OnEnter", function()
+				if opts.onEnter then
 					opts.onEnter(row, i, line)
-				end)
-			end
-			if opts.onLeave then
-				line:SetScript("OnLeave", function()
+				elseif #cellTips > 0 then
+					GameTooltip:SetOwner(line, "ANCHOR_CURSOR")
+					for _, tip in ipairs(cellTips) do
+						GameTooltip:AddLine(tip, 1, 1, 1, true)
+					end
+					GameTooltip:Show()
+				end
+			end)
+			line:SetScript("OnLeave", function()
+				if opts.onLeave then
 					opts.onLeave(row, i, line)
-				end)
-			end
+				else
+					GameTooltip:Hide()
+				end
+			end)
 			if opts.onClick then
 				line:SetScript("OnMouseUp", function(_, button)
 					if button == "LeftButton" then
@@ -364,6 +409,7 @@ function Layout.AddTable(stack, columns, rows, opts)
 		end
 	end
 
+	local bodyH = math.max(rowH, #rows * rowH)
 	local totalH = headerH + 2 + bodyH + 4
 	wrap:SetHeight(totalH)
 	stack.y = stack.y + totalH + 4
@@ -378,19 +424,28 @@ function Layout.FinishStack(stack)
 	return stack.y
 end
 
-function Layout.BodyStack(root)
-	-- Body may need internal scroll for long content
+---Body content stack. Single ScrollFrame only (no nested table scrollbars).
+function Layout.BodyStack(root, opts)
+	opts = opts or {}
 	local body = root.body
-	local scroll = CreateFrame("ScrollFrame", nil, body, "UIPanelScrollFrameTemplate")
-	scroll:SetPoint("TOPLEFT", 4, -4)
-	scroll:SetPoint("BOTTOMRIGHT", -26, 4)
-	local child = CreateFrame("Frame", nil, scroll)
-	child:SetSize(math.max(100, (body:GetWidth() or 400) - 30), 10)
-	scroll:SetScrollChild(child)
-	root._bodyScroll = scroll
-	root._bodyChild = child
+	local child
+	if opts.scroll == false then
+		child = CreateFrame("Frame", nil, body)
+		child:SetPoint("TOPLEFT", 4, -4)
+		child:SetPoint("BOTTOMRIGHT", -4, 4)
+		root._bodyScroll = nil
+		root._bodyChild = child
+	else
+		local scroll = CreateFrame("ScrollFrame", nil, body, "UIPanelScrollFrameTemplate")
+		scroll:SetPoint("TOPLEFT", 4, -4)
+		scroll:SetPoint("BOTTOMRIGHT", -26, 4)
+		child = CreateFrame("Frame", nil, scroll)
+		child:SetSize(math.max(100, (body:GetWidth() or 400) - 30), 10)
+		scroll:SetScrollChild(child)
+		root._bodyScroll = scroll
+		root._bodyChild = child
+	end
 	local stack = Layout.Stack(child)
-	-- Width after layout
 	child:SetScript("OnSizeChanged", function(self, w)
 		if w and w > 40 then
 			stack.width = w - 4

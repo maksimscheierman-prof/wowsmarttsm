@@ -16,6 +16,7 @@ local function defaultsDB()
 			dataMaxAgeSeconds = C.DATA_MAX_AGE_SECONDS,
 			minExpectedNetCopper = 0,
 			dryRunVendor = true,
+			openUIAfterScan = false, -- /smarttsm scan does not open UI unless enabled
 			debug = false,
 			frame = { point = "CENTER", x = 0, y = 0, width = 920, height = 620, scale = 1 },
 			columns = {},

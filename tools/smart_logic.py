@@ -238,11 +238,23 @@ def evaluate_pricing(profile: dict, cfg: Optional[PricingConfig] = None) -> dict
             reasons.append("DEPOSIT_RISK_TOO_HIGH")
         else:
             should_post = True
-            if (profile.get("saleRate") or 1) >= 0.4 or (profile.get("soldPerDay") or 0) >= 2:
-                mode = "QUICK"
+            # Priority: RARE → QUICK (real demand only) → PROFIT. Never default saleRate to 1.
             cat = resolve_hold_category(profile)
-            if cat and (profile.get("quality") or 0) >= QUALITY_RARE:
+            is_rare = cat in ("RARE_RECIPE", "BLUE_GEAR", "EPIC_GEAR") or (
+                (profile.get("quality") or 0) >= QUALITY_RARE and profile.get("isEquipment") is True
+            )
+            sr = profile.get("saleRate")
+            spd = profile.get("soldPerDay")
+            has_quick = (sr is not None and sr >= 0.4) or (spd is not None and spd >= 2)
+            if is_rare:
                 mode = "RARE"
+                reasons.append("MODE_RARE_ITEM")
+            elif has_quick:
+                mode = "QUICK"
+                reasons.append("MODE_QUICK_DEMAND")
+            else:
+                mode = "PROFIT"
+                reasons.append("MODE_PROFIT_DEFAULT")
             reasons.append("EV_POSITIVE")
     else:
         reasons.append("NO_POSITIVE_EV_CANDIDATE")

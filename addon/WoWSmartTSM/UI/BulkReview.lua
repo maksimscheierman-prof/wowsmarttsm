@@ -72,11 +72,11 @@ function BulkReview.Render(parent, opts)
 	end)
 
 	local root = Layout.Begin(parent)
-	Layout.HeaderTitle(root.header, opts.title or "Review")
-	Layout.HeaderButton(root.header, L("SCAN"), function()
+	local _, bw = Layout.HeaderButton(root.header, L("SCAN"), function()
 		ScanService.ReevaluateBags({ reason = "ui_button" })
 		BulkReview.Render(parent, opts)
 	end)
+	Layout.HeaderTitle(root.header, opts.title or "Review", (bw or 160) + 12)
 
 	local stack = Layout.BodyStack(root)
 	local eval = ScanService.GetEvalStatus and ScanService.GetEvalStatus() or {}
@@ -152,9 +152,14 @@ function BulkReview.Render(parent, opts)
 			reason = d.reasons[1]
 		end
 		local selected = private.selected[d.itemString] and "✓" or ""
+		local itemName = d.name or d.itemString or "?"
 		rows[#rows + 1] = {
 			selected,
-			{ text = d.name or d.itemString or "?", color = Theme.StrategyColor(d.strategy) },
+			{
+				text = itemName,
+				fullText = itemName,
+				color = Theme.StrategyColor(d.strategy),
+			},
 			d.strategy or "-",
 			d.targetGroup or "-",
 			tostring(d.quantity or 1),

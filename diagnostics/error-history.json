@@ -1,4 +1,40 @@
 {
-  "fingerprints": {},
-  "updatedAt": "2026-11-12T12:21:16.371514+00:00"
+  "fingerprints": {
+    "E9999|sv|import|Item API probe: info=C_Item.GetItemInfo bag=C_Container GetItemInfo=UNSUPPORTED|": {
+      "firstSeen": "2026-11-12T15:22:25.299631+00:00",
+      "count": 4,
+      "status": "open"
+    },
+    "E9999|sv|import|Auto reevaluation armed (debounce N.Ns)|": {
+      "firstSeen": "2026-11-12T15:22:25.299646+00:00",
+      "count": 4,
+      "status": "open"
+    },
+    "E9999|sv|import|WoW Smart TSM N.N.N loaded (TSM-data reeval, no AH scan)|": {
+      "firstSeen": "2026-11-12T15:22:25.299654+00:00",
+      "count": 4,
+      "status": "open"
+    },
+    "E9999|sv|import|Reevaluated N stacks via TSM data (reason=item_info_received, status=OK, ahScan=false, pendingMeta=N, skipped=N, itemApi=C_Item.GetItemInfo)|": {
+      "firstSeen": "2026-11-12T15:22:25.299662+00:00",
+      "count": 20,
+      "status": "open"
+    },
+    "E9999|sv|import|Reevaluated N stacks via TSM data (reason=bag_update, status=OK, ahScan=false, pendingMeta=N, skipped=N, itemApi=C_Item.GetItemInfo)|": {
+      "firstSeen": "2026-11-12T15:22:25.299701+00:00",
+      "count": 130,
+      "status": "open"
+    },
+    "E9999|sv|import|Reevaluated N stacks via TSM data (reason=bag_update, status=NO_ITEMS, ahScan=false, cacheHits=N, needLiveCompetition=N)|": {
+      "firstSeen": "2026-11-12T15:22:25.300048+00:00",
+      "count": 2,
+      "status": "open"
+    },
+    "E3001|sv|import|Reevaluated N stacks via TSM data (reason=bag_update, status=OK, ahScan=false, pendingMeta=N, skipped=N, itemApi=C_Item.GetItemInfo)|": {
+      "firstSeen": "2026-11-12T15:22:25.300058+00:00",
+      "count": 2,
+      "status": "open"
+    }
+  },
+  "updatedAt": "2026-11-12T15:26:42.448438+00:00"
 }

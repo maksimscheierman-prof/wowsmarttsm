@@ -77,19 +77,43 @@ function Commands.Handle(msg)
 		local results = ScanService.ReevaluateBags({ reason = "manual_command", incremental = false })
 		local sum = ScanService.Summarize(results)
 		local meta = ScanService.GetLastMeta()
+		local quick = 0
+		local profit = 0
+		local rare = 0
+		local C = Smart:Module("Constants")
+		for _, d in ipairs(results or {}) do
+			if d and d.strategy == C.STRATEGIES.QUICK_SELL then
+				quick = quick + 1
+			elseif d and d.strategy == C.STRATEGIES.PROFIT_SELL then
+				profit = profit + 1
+			elseif d and d.strategy == C.STRATEGIES.RARE_SELL then
+				rare = rare + 1
+			end
+		end
 		print(string.format(
-			"|cff4ecdc4[SmartTSM]|r Neubewertung (kein AH-Scan): post=%d vendor=%d hold=%d review=%d needLive=%d cacheHits=%d",
-			sum.toPost,
+			"|cff4ecdc4[SmartTSM]|r Neubewertung (kein AH-Scan): quick=%d profit=%d rare=%d vendor=%d hold=%d review=%d needLive=%d",
+			quick,
+			profit,
+			rare,
 			sum.vendor,
 			sum.hold,
 			sum.review,
-			sum.needsLiveCompetition,
-			meta.postingCacheHits or 0
+			sum.needsLiveCompetition
 		))
-		openUI()
+		local settings = WoWSmartTSM_DB and WoWSmartTSM_DB.settings
+		local openUi = settings and settings.openUIAfterScan
+		if rest == "show" or rest == "ui" then
+			openUi = true
+		end
+		if openUi then
+			openUI()
+		else
+			print("|cff4ecdc4[SmartTSM]|r UI nicht geöffnet (openUIAfterScan=false). /smarttsm show oder /smarttsm scan show")
+		end
 	elseif cmd == "help" then
 		print("|cff4ecdc4[SmartTSM]|r /smarttsm [show|scan|reeval|status|errors|diagnose|debug|reset|help]")
 		print("|cff4ecdc4[SmartTSM]|r scan/reeval = Taschen anhand TSM-Daten neu bewerten (kein AH-Scan)")
+		print("|cff4ecdc4[SmartTSM]|r scan show = Neubewertung und UI öffnen; Einstellung: openUIAfterScan")
 	else
 		print("|cff4ecdc4[SmartTSM]|r Unknown command. /smarttsm help")
 	end

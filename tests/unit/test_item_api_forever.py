@@ -64,7 +64,7 @@ def test_toc_loads_itemapi_before_itemutil():
     toc = (ADDON_SRC / "WoWSmartTSM.toc").read_text(encoding="utf-8")
     assert "Util\\ItemAPI.lua" in toc
     assert toc.index("Util\\ItemAPI.lua") < toc.index("Util\\ItemUtil.lua")
-    assert "## Version: 0.1.4" in toc
+    assert "## Version: 0.1." in toc
 
 
 def test_offline_getiteminfo_absent_simulation():

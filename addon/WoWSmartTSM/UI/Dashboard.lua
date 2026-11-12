@@ -33,17 +33,32 @@ function Dashboard.Render(parent)
 	local health = Health and Health.GetReport and Health.GetReport() or {}
 
 	local root = Layout.Begin(parent)
-	Layout.HeaderTitle(root.header, L("DASHBOARD"))
-	Layout.HeaderButton(root.header, L("SCAN"), function()
+	local _, bw = Layout.HeaderButton(root.header, L("SCAN"), function()
 		ScanService.ReevaluateBags({ reason = "ui_button" })
 		Dashboard.Render(parent)
 	end)
+	Layout.HeaderTitle(root.header, L("DASHBOARD"), (bw or 160) + 12)
+
+	local results = ScanService.GetLastResults() or {}
+	local C = Smart:Module("Constants")
+	local quick, profit, rare = 0, 0, 0
+	for _, d in ipairs(results) do
+		if d and d.strategy == C.STRATEGIES.QUICK_SELL then
+			quick = quick + 1
+		elseif d and d.strategy == C.STRATEGIES.PROFIT_SELL then
+			profit = profit + 1
+		elseif d and d.strategy == C.STRATEGIES.RARE_SELL then
+			rare = rare + 1
+		end
+	end
 
 	local stack = Layout.BodyStack(root)
 	Layout.AddText(stack, eval.label or "Status unbekannt", "GameFontHighlight", Theme.COLORS.accent)
 	Layout.AddGap(stack, 6)
 	Layout.AddMetricGrid(stack, {
-		{ L("POSTING"), sum.toPost, Theme.COLORS.post },
+		{ "Quick", quick, Theme.COLORS.post },
+		{ "Profit", profit, Theme.COLORS.post },
+		{ "Rare", rare, Theme.COLORS.hold },
 		{ "Optimierbar", sum.optimizable, Theme.COLORS.skip },
 		{ L("VENDOR"), sum.vendor, Theme.COLORS.vendor },
 		{ L("HOLD"), sum.hold, Theme.COLORS.hold },
@@ -51,7 +66,7 @@ function Dashboard.Render(parent)
 		{ "Vendorwert", Money.Format(sum.vendorValue, true) },
 		{ L("DATA_QUALITY"), string.format("%.0f%%", (sum.dataQualityAvg or 0) * 100) },
 		{ "Need Live AH", sum.needsLiveCompetition or 0, Theme.COLORS.warn },
-	}, 4)
+	}, 5)
 
 	Layout.AddGap(stack, 8)
 	local realmTs = Freshness and select(1, Freshness.GetCategoryTimestamp("realm"))

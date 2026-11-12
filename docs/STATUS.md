@@ -4,7 +4,7 @@
 |------|--------|
 | Repo / feature branch | `feature/wow-smart-tsm-v1` |
 | Audit TSM Forever | Done — TSM v4.15.6, region EU-Forever |
-| Companion addon | **v0.1.4** — C_Item/C_Container adapter + button-row wrap + failed-eval UX |
+| Companion addon | **v0.1.5** — UI polish, strategy modes (QUICK/PROFIT/RARE), vendor dry-run tab |
 | DataTap | `!SmartTSM_DataTap` for AppHelper downloadTime |
 | Diagnostics + watchdog | Logger soft-fail + loadError + coverage note |
 | Rules / Hold / Pricing | Implemented + offline tests (unchanged policy) |

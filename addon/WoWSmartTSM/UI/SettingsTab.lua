@@ -17,12 +17,12 @@ function SettingsTab.Render(parent)
 	Layout.AddText(stack, "Auction Hours: " .. tostring(db.auctionHours), "GameFontHighlight")
 	Layout.AddText(stack, "Data Max Age (s): " .. tostring(db.dataMaxAgeSeconds), "GameFontHighlight")
 	Layout.AddText(stack, "Dry-Run Vendor: " .. tostring(db.dryRunVendor), "GameFontHighlight")
+	Layout.AddText(stack, "UI nach /smarttsm scan öffnen: " .. tostring(db.openUIAfterScan), "GameFontHighlight")
 	Layout.AddText(stack, "Debug: " .. tostring(db.debug), "GameFontHighlight")
 	Layout.AddGap(stack, 10)
 	Layout.AddButtonRow(stack, {
 		{
 			text = "Locale de/en",
-			width = 120,
 			onClick = function()
 				db.locale = (db.locale == "deDE") and "enUS" or "deDE"
 				SettingsTab.Render(parent)
@@ -30,15 +30,21 @@ function SettingsTab.Render(parent)
 		},
 		{
 			text = "Dry-Run umschalten",
-			width = 140,
 			onClick = function()
 				db.dryRunVendor = not db.dryRunVendor
 				SettingsTab.Render(parent)
 			end,
 		},
 		{
+			text = "Scan→UI umschalten",
+			tooltip = "Wenn an: /smarttsm scan öffnet das Fenster. Standard aus.",
+			onClick = function()
+				db.openUIAfterScan = not db.openUIAfterScan
+				SettingsTab.Render(parent)
+			end,
+		},
+		{
 			text = "Debug umschalten",
-			width = 130,
 			onClick = function()
 				db.debug = not db.debug
 				SettingsTab.Render(parent)
@@ -48,7 +54,8 @@ function SettingsTab.Render(parent)
 	Layout.AddGap(stack, 8)
 	Layout.AddText(
 		stack,
-		"AH-Cut/Deposit sind PARTIAL verifiziert und konfigurierbar. Globale TSM-Operationen werden nicht verändert.",
+		"AH-Cut/Deposit sind PARTIAL verifiziert und konfigurierbar. Globale TSM-Operationen werden nicht verändert. "
+			.. "Kein Echtverkauf/Gruppenwechsel ohne Bestätigung.",
 		"GameFontHighlightSmall",
 		Theme.COLORS.muted
 	)

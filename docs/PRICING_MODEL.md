@@ -28,4 +28,16 @@ Candidates: market, 95%/85% market, undercut min buyout, below-op-min candidate,
 - Conservative path when thin/stale data
 - Never claim false precision when `precise=false`
 
+## Strategy mode (when `shouldPost`)
+
+Priority order:
+
+1. **RARE** — blue/epic equipment or rare-recipe category (Hold category resolver; Sell-first still applies)
+2. **QUICK** — only when real demand exists: `saleRate ~= nil and saleRate >= 0.4` **or** `soldPerDay ~= nil and soldPerDay >= 2`
+3. **PROFIT** — default AH post when EV is positive but demand is missing/low
+
+**Bug fixed in v0.1.5:** `(saleRate or 1)` treated missing saleRate as 1.0 and forced almost everything to `QUICK_SELL`.
+
+Vendor candidates appear only when AH is not chosen and protections/hold allow — never invented to fill the Vendor tab.
+
 Lower than current TSM operation minimum is allowed **only** as an item-level Smart group recommendation, not a global operation edit.

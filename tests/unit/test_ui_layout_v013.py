@@ -46,8 +46,13 @@ def test_all_tabs_use_layout_begin():
     for name in TABS:
         text = (ADDON_SRC / "UI" / name).read_text(encoding="utf-8")
         # Thin tabs may delegate to BulkReview which uses Layout
-        if name in ("PostingTab.lua", "SkippedTab.lua", "VendorTab.lua", "HoldTab.lua"):
+        if name in ("PostingTab.lua", "SkippedTab.lua", "HoldTab.lua"):
             assert "BulkReview.Render" in text, name
+            continue
+        # VendorTab has its own dry-run Layout UI (not BulkReview)
+        if name == "VendorTab.lua":
+            assert "Layout.Begin" in text
+            assert "VendorService" in text
             continue
         if "Layout.Begin" not in text:
             missing.append(name)

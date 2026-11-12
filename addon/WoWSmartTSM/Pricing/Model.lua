@@ -171,16 +171,28 @@ function PricingModel.Evaluate(profile)
 			shouldPost = false
 		else
 			shouldPost = true
-			if (profile.saleRate or 1) >= 0.4 or (profile.soldPerDay or 0) >= 2 then
-				mode = "QUICK"
-			end
+			-- Mode priority: RARE (blue+/epic/recipe) → QUICK (real demand) → PROFIT (default).
+			-- Never treat missing saleRate as 1.0 (that forced everything to QUICK_SELL).
 			local holdCat = nil
 			local HoldPolicy = Smart:GetModule("HoldPolicy")
-			if HoldPolicy then
+			if HoldPolicy and HoldPolicy.ResolveCategory then
 				holdCat = HoldPolicy.ResolveCategory(profile)
 			end
-			if holdCat and (profile.quality or 0) >= C.QUALITY.RARE then
+			local isRarePost = (holdCat == "RARE_RECIPE")
+				or (holdCat == "BLUE_GEAR")
+				or (holdCat == "EPIC_GEAR")
+				or ((profile.quality or 0) >= C.QUALITY.RARE and profile.isEquipment == true)
+			local hasQuickDemand = (profile.saleRate ~= nil and profile.saleRate >= 0.4)
+				or (profile.soldPerDay ~= nil and profile.soldPerDay >= 2)
+			if isRarePost then
 				mode = "RARE"
+				reasons[#reasons + 1] = "MODE_RARE_ITEM"
+			elseif hasQuickDemand then
+				mode = "QUICK"
+				reasons[#reasons + 1] = "MODE_QUICK_DEMAND"
+			else
+				mode = "PROFIT"
+				reasons[#reasons + 1] = "MODE_PROFIT_DEFAULT"
 			end
 			reasons[#reasons + 1] = "EV_POSITIVE"
 		end
