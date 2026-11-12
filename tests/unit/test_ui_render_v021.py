@@ -15,6 +15,7 @@ from paths import ADDON_SRC
 TAB_FILES = {
     "Cleanup": "CleanupTab.lua",
     "Dashboard": "Dashboard.lua",
+    "Groups": "GroupsTab.lua",
     "Posting": "PostingTab.lua",
     "Mail": "MailTab.lua",
     "Vendor": "VendorTab.lua",
@@ -22,6 +23,7 @@ TAB_FILES = {
     "Skipped": "SkippedTab.lua",
     "Characters": "CharactersTab.lua",
     "Rules": "RulesTab.lua",
+    "Setup": "SetupWizard.lua",
     "History": "HistoryTab.lua",
     "Settings": "SettingsTab.lua",
     "Diagnostics": "DiagnosticsTab.lua",
@@ -316,7 +318,7 @@ def test_tab_switch_and_multi_open_model():
         host._smartRoot = root
         roots.append(root)
         assert host._smartRoot.regions[0].GetText() == f"content:{tab}"
-    assert len(roots) == 12
+    assert len(roots) == len(TAB_FILES)
     # Only last root remains parented to host
     assert host._smartRoot.name == "root-Diagnostics"
 

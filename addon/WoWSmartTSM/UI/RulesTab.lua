@@ -59,8 +59,8 @@ function RulesTab.Render(parent)
 	})
 	Layout.AddText(
 		stack,
-		"Verbrauchsgüter ohne Mindestmenge werden konservativ behalten (CONSUMABLE_NEEDS_MIN_CONFIG). "
-			.. "Mindestmenge setzbar über Consumables.SetMinQty / künftig UI-Detail.",
+		"MAIN: Verbrauchsgüter/Materialien standardmäßig schützen. BANK: AH-Verkauf bewerten. "
+			.. "Optionale Reservemenge pro Item/Charakter via Consumables.SetMinQty — kein stilles Abschalten des Schutzes.",
 		"GameFontHighlightSmall",
 		Theme.COLORS.muted
 	)

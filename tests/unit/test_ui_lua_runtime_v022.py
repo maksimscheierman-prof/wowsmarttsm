@@ -90,7 +90,7 @@ def test_each_tab_render_individually():
 		load_all_tabs(lua)
 		render_tab(lua, tab)
 		results[tab] = "ok"
-	assert len(results) == 12
+	assert len(results) == len(TAB_FILES)
 	assert set(results) == set(TAB_FILES)
 
 

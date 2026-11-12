@@ -110,9 +110,40 @@ function Commands.Handle(msg)
 		else
 			print("|cff4ecdc4[SmartTSM]|r UI nicht geöffnet (openUIAfterScan=false). /smarttsm show oder /smarttsm scan show")
 		end
+	elseif cmd == "importstring" or cmd == "import" then
+		local str = WoWSmartTSM_DB and WoWSmartTSM_DB.lastGroupImportString
+		if not str or str == "" then
+			local Groups = Smart:GetModule("Groups")
+			str = Groups and Groups.GetLastImportString and Groups.GetLastImportString()
+		end
+		if not str or str == "" then
+			print("|cffffcc00[SmartTSM]|r Kein Import-String gespeichert. Zuerst TSM-Gruppen → sichere Vorschläge.")
+		else
+			print("|cff4ecdc4[SmartTSM]|r TSM Groups Import-String (" .. tostring(#str) .. " Zeichen):")
+			-- chunk print for chat limits
+			local i = 1
+			while i <= #str do
+				print(str:sub(i, i + 240))
+				i = i + 241
+			end
+			print("|cff4ecdc4[SmartTSM]|r → TSM öffnen → Groups → Import")
+		end
+	elseif cmd == "groups" then
+		openUI()
+		local MainFrame = Smart:GetModule("MainFrame")
+		if MainFrame and MainFrame.SelectTab then
+			MainFrame.SelectTab("Groups")
+		end
+	elseif cmd == "setup" then
+		openUI()
+		local MainFrame = Smart:GetModule("MainFrame")
+		if MainFrame and MainFrame.SelectTab then
+			MainFrame.SelectTab("Setup")
+		end
 	elseif cmd == "help" then
-		print("|cff4ecdc4[SmartTSM]|r /smarttsm [show|scan|reeval|status|errors|diagnose|debug|reset|help]")
+		print("|cff4ecdc4[SmartTSM]|r /smarttsm [show|scan|reeval|groups|setup|importstring|status|errors|diagnose|debug|reset|help]")
 		print("|cff4ecdc4[SmartTSM]|r scan/reeval = Taschen anhand TSM-Daten neu bewerten (kein AH-Scan)")
+		print("|cff4ecdc4[SmartTSM]|r groups = TSM-Gruppen-Tab | setup = Assistent | importstring = letzter Import")
 		print("|cff4ecdc4[SmartTSM]|r scan show = Neubewertung und UI öffnen; Einstellung: openUIAfterScan")
 	else
 		print("|cff4ecdc4[SmartTSM]|r Unknown command. /smarttsm help")

@@ -11,6 +11,8 @@ from paths import ADDON_SRC
 TABS = [
     "CleanupTab.lua",
     "Dashboard.lua",
+    "GroupsTab.lua",
+    "SetupWizard.lua",
     "PostingTab.lua",
     "MailTab.lua",
     "SkippedTab.lua",

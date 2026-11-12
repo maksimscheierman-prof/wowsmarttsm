@@ -321,6 +321,8 @@ def stub_tab_dependencies(lua: Any) -> None:
 			GetRole = function() return 'MAIN' end,
 			IsBankConfigured = function() return false end,
 			GetPrimaryBankKey = function() return nil end,
+			GetPrimaryBankDisplay = function() return nil end,
+			CanMailToBank = function() return false, 'BANK_CHARACTER_NOT_CONFIGURED' end,
 			List = function() return {} end,
 			SetRole = function() end,
 			SetPrimaryBank = function() end,
@@ -338,8 +340,57 @@ def stub_tab_dependencies(lua: Any) -> None:
 			Get = function() return {} end,
 			Add = function() end,
 		})
-		emptyMod('Undo', { CanUndo = function() return false end, Undo = function() end })
-		emptyMod('Groups', { PreviewAssign = function() return {} end, ApplyAssign = function() end })
+		emptyMod('Undo', {
+			CanUndo = function() return false end,
+			Undo = function() end,
+			UndoLast = function() return false end,
+			Push = function() end,
+		})
+		emptyMod('Groups', {
+			PreviewAssign = function() return {} end,
+			ApplyAssign = function() end,
+			ProbeCapabilities = function() return { writeMode='IMPORT_STRING', claim='mock', apiPresent=false } end,
+			GetPathByItem = function() return nil end,
+			ListPaths = function() return {} end,
+			MissingSmartGroups = function() return {} end,
+			BuildImportString = function() return '' end,
+			GetLastImportString = function() return nil end,
+			ApplyMoves = function() return true, {}, { mode='IMPORT_STRING', importString='' } end,
+			VerifyMoves = function() return {}, {} end,
+			IsSmartGroup = function() return false end,
+			OpenTSMGroupsHint = function() return 'mock hint' end,
+			EnsureSmartGroups = function() return false, 'NEED_IMPORT', {} end,
+			SMART_GROUPS = {},
+			STRATEGY_TO_GROUP = {},
+		})
+		emptyMod('GroupManager', {
+			BuildProposals = function() return {} end,
+			Preview = function() return {
+				safeCount=0, reviewCount=0, protectedCount=0, alreadyOk=0,
+				moves={}, missingGroups={}, capabilities={ writeMode='IMPORT_STRING' },
+			} end,
+			FilterSafe = function() return {} end,
+			StageSafeApply = function() return { safeCount=0, moves={}, capabilities={} } end,
+			ConfirmSafeApply = function() return false, {}, { error='NO_MOVES' } end,
+			GetLastPreview = function() return nil end,
+			GetLastProposals = function() return {} end,
+			StatusLabel = function(s) return tostring(s or '?') end,
+			GroupLabel = function(p) if not p or p == '' then return 'Keine Gruppe' end; return p end,
+			STATUS = { SAFE='SAFE', REVIEW='REVIEW', PROTECTED='PROTECTED' },
+		})
+		emptyMod('Operations', {
+			ProbeCapabilities = function() return { writeMode='MANUAL_SETUP' } end,
+			GetAuctioningContext = function() return {} end,
+			RecommendAuctioningOp = function() return nil end,
+			RecommendMailingOp = function() return nil, 'BANK_NOT_CONFIGURED', 'mock' end,
+			SetupChecklist = function() return {
+				{ id='ops_auctioning', title='Auctioning', detail='mock', manual=true },
+				{ id='ops_vendor', title='Vendoring', detail='mock', manual=true },
+				{ id='ops_inheritance', title='Vererbung', detail='mock', manual=true },
+			} end,
+			OpenTSMHint = function() return 'mock ops hint' end,
+		})
+		emptyMod('MainFrame', { SelectTab = function() end, Get = function() return nil end })
 		emptyMod('SkipMap', {})
 		emptyMod('Freshness', {
 			GetReport = function() return {} end,
@@ -381,6 +432,7 @@ def stub_tab_dependencies(lua: Any) -> None:
 TAB_FILES = {
 	"Cleanup": "CleanupTab.lua",
 	"Dashboard": "Dashboard.lua",
+	"Groups": "GroupsTab.lua",
 	"Posting": "PostingTab.lua",
 	"Mail": "MailTab.lua",
 	"Vendor": "VendorTab.lua",
@@ -388,6 +440,7 @@ TAB_FILES = {
 	"Skipped": "SkippedTab.lua",
 	"Characters": "CharactersTab.lua",
 	"Rules": "RulesTab.lua",
+	"Setup": "SetupWizard.lua",
 	"History": "HistoryTab.lua",
 	"Settings": "SettingsTab.lua",
 	"Diagnostics": "DiagnosticsTab.lua",
@@ -396,6 +449,7 @@ TAB_FILES = {
 MODULE_FOR_TAB = {
 	"Cleanup": "CleanupTab",
 	"Dashboard": "Dashboard",
+	"Groups": "GroupsTab",
 	"Posting": "PostingTab",
 	"Mail": "MailTab",
 	"Vendor": "VendorTab",
@@ -403,6 +457,7 @@ MODULE_FOR_TAB = {
 	"Skipped": "SkippedTab",
 	"Characters": "CharactersTab",
 	"Rules": "RulesTab",
+	"Setup": "SetupWizard",
 	"History": "HistoryTab",
 	"Settings": "SettingsTab",
 	"Diagnostics": "DiagnosticsTab",

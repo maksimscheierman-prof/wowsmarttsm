@@ -20,6 +20,7 @@ local private = {
 local TAB_ORDER = {
 	"Cleanup",
 	"Dashboard",
+	"Groups",
 	"Posting",
 	"Mail",
 	"Vendor",
@@ -27,6 +28,7 @@ local TAB_ORDER = {
 	"Skipped",
 	"Characters",
 	"Rules",
+	"Setup",
 	"History",
 	"Settings",
 	"Diagnostics",
@@ -36,6 +38,7 @@ local function labelKeyFor(name)
 	local map = {
 		Cleanup = "CLEANUP",
 		Dashboard = "DASHBOARD",
+		Groups = "GROUPS_TAB",
 		Posting = "POSTING",
 		Mail = "MAIL",
 		Skipped = "SKIPPED",
@@ -43,6 +46,7 @@ local function labelKeyFor(name)
 		Hold = "HOLD",
 		Characters = "CHARACTERS",
 		Rules = "RULES",
+		Setup = "SETUP_WIZARD",
 		History = "HISTORY",
 		Settings = "SETTINGS",
 		Diagnostics = "DIAGNOSTICS",

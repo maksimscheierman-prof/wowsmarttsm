@@ -29,6 +29,9 @@ REQUIRED = [
     "UI/Dashboard.lua",
     "UI/DiagnosticsTab.lua",
     "UI/BulkReview.lua",
+    "Core/GroupManager.lua",
+    "UI/GroupsTab.lua",
+    "UI/SetupWizard.lua",
 ]
 
 

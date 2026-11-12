@@ -16,7 +16,18 @@ C.GROUPS = {
 	RARE = "Smart TSM`Smart Rare Sell",
 	VENDOR = "Smart TSM`Smart Vendor",
 	HOLD = "Smart TSM`Smart Hold",
+	IGNORE = "Smart TSM`Smart Ignore",
 	REVIEW = "Smart TSM`Manual Review",
+}
+
+-- Recommended auctioning op names (created manually / via import guidance; not forced into TSM internals)
+C.OPS = {
+	QUICK = "Smart Quick Sell",
+	PROFIT = "Smart Profit Sell",
+	RARE = "Smart Rare Sell",
+	VENDOR = "Smart Vendor",
+	HOLD = "Smart Hold",
+	MAIL_TO_BANK = "Smart Mail to Bank",
 }
 
 -- AH / economic strategy (independent of transport)

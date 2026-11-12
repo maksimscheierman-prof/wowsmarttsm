@@ -31,28 +31,67 @@ function Undo.UndoLast()
 		return false
 	end
 	if entry.type == "GROUP_MOVES" then
+		if entry.mode == "IMPORT_STRING" then
+			local rev = entry.reverseImportString
+			if not rev or rev == "" then
+				-- rebuild from moves that had fromGroup
+				local reverseMoves = {}
+				for _, m in ipairs(entry.moves or {}) do
+					if m.fromGroup then
+						reverseMoves[#reverseMoves + 1] = {
+							itemString = m.itemString,
+							toGroup = m.fromGroup,
+						}
+					end
+				end
+				rev = Groups.BuildImportString(reverseMoves)
+			end
+			if WoWSmartTSM_DB then
+				WoWSmartTSM_DB.lastGroupImportString = rev
+			end
+			Logger.Info(
+				"UNKNOWN",
+				"Undo",
+				"UndoLast",
+				"Reverse import prepared — paste into TSM Groups → Import"
+			)
+			print("|cff4ecdc4[SmartTSM]|r Undo (Import): Reverse-String bereit — /smarttsm importstring")
+			if rev and #rev > 0 then
+				local preview = (#rev > 180) and (rev:sub(1, 180) .. "…") or rev
+				print(preview)
+			end
+			return true
+		end
 		local reverse = {}
 		for _, m in ipairs(entry.moves or {}) do
-			reverse[#reverse + 1] = {
-				itemString = m.itemString,
-				fromGroup = m.toGroup,
-				toGroup = m.fromGroup,
-			}
+			if m.fromGroup then
+				reverse[#reverse + 1] = {
+					itemString = m.itemString,
+					fromGroup = m.toGroup,
+					toGroup = m.fromGroup,
+				}
+			end
 		end
-		-- Apply without pushing another undo (manual)
 		local api = TSM_API
 		if not api then
 			return false
 		end
+		local n = 0
 		for _, m in ipairs(reverse) do
+			local ok = false
 			if api.SetGroup then
-				pcall(api.SetGroup, m.itemString, m.toGroup)
+				ok = pcall(api.SetGroup, m.itemString, m.toGroup)
 			elseif api.MoveItem then
-				pcall(api.MoveItem, m.itemString, m.toGroup)
+				ok = pcall(api.MoveItem, m.itemString, m.toGroup)
+			elseif api.SetItemGroup then
+				ok = pcall(api.SetItemGroup, m.itemString, m.toGroup)
+			end
+			if ok then
+				n = n + 1
 			end
 		end
-		Logger.Info("UNKNOWN", "Undo", "UndoLast", "Reverted " .. tostring(#reverse) .. " group moves")
-		return true
+		Logger.Info("UNKNOWN", "Undo", "UndoLast", "Reverted " .. tostring(n) .. " group moves")
+		return n > 0
 	end
 	return false
 end

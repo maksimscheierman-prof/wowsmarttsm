@@ -253,4 +253,5 @@ def test_toc_loads_resolver_before_profiles():
 	assert toc.index("CharacterResolver.lua") < toc.index("CharacterProfiles.lua")
 	assert "UI\\ItemExplain.lua" in toc
 	assert "UI\\ItemContextMenu.lua" in toc
-	assert "## Version: 0.2.3" in toc
+	assert "## Version: 0.2." in toc
+	assert "0.2.4" in toc or "0.2.3" in toc

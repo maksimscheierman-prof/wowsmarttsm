@@ -1,8 +1,15 @@
 local Smart = WoWSmartTSM
 local C = Smart:Module("Constants")
 local Logger = Smart:Module("Logger")
-local Undo = nil
 local Groups = Smart:Module("Groups")
+
+--[[
+  TSM v4.15.6 App/API.lua (VERIFIED read surface):
+    GetGroupPaths, FormatGroupPath, SplitGroupPath,
+    GetGroupPathByItem, GetGroupItems, RegisterGroupItemCallback
+  Write APIs (CreateGroup / SetGroup / MoveItem): NOT in public TSM_API.
+  Safe apply path = TSM Groups Import string (group:path,item list format).
+]]
 
 local SMART_GROUPS = {
 	C.GROUPS.QUICK,
@@ -11,13 +18,47 @@ local SMART_GROUPS = {
 	C.GROUPS.VENDOR,
 	C.GROUPS.HOLD,
 	C.GROUPS.REVIEW,
+	C.GROUPS.IGNORE,
+}
+
+local private = {
+	writeProbe = nil,
+	lastImportString = nil,
+	groupCallbackRegistered = false,
 }
 
 local function tsmGroupApi()
-	if TSM_API then
-		return TSM_API
+	return TSM_API
+end
+
+function Groups.ProbeCapabilities()
+	if private.writeProbe then
+		return private.writeProbe
 	end
-	return nil
+	local api = tsmGroupApi()
+	local cap = {
+		apiPresent = api ~= nil,
+		getPaths = api and type(api.GetGroupPaths) == "function" or false,
+		getPathByItem = api and type(api.GetGroupPathByItem) == "function" or false,
+		getItems = api and type(api.GetGroupItems) == "function" or false,
+		registerCallback = api and type(api.RegisterGroupItemCallback) == "function" or false,
+		createGroup = api and type(api.CreateGroup) == "function" or false,
+		setGroup = api and (type(api.SetGroup) == "function" or type(api.MoveItem) == "function" or type(api.SetItemGroup) == "function") or false,
+		writeMode = "IMPORT_STRING", -- default safe path for 4.15.6
+		claim = "VERIFIED_READ_PARTIAL_WRITE",
+	}
+	if cap.createGroup and cap.setGroup then
+		cap.writeMode = "DIRECT_API"
+		cap.claim = "WRITE_API_DETECTED"
+	elseif cap.setGroup then
+		cap.writeMode = "DIRECT_MOVE_ONLY"
+		cap.claim = "PARTIAL_WRITE_API"
+	else
+		cap.writeMode = "IMPORT_STRING"
+		cap.claim = "VERIFIED_READ_IMPORT_WRITE"
+	end
+	private.writeProbe = cap
+	return cap
 end
 
 function Groups.GetPathByItem(itemString)
@@ -25,97 +66,312 @@ function Groups.GetPathByItem(itemString)
 	if not api then
 		return nil
 	end
-	-- VERIFIED TSM_API name: GetGroupPathByItem (App/API.lua)
 	if api.GetGroupPathByItem then
 		local ok, path = pcall(api.GetGroupPathByItem, itemString)
-		if ok then
-			return path
-		end
-	end
-	if api.GetGroupPath then
-		local ok, path = pcall(api.GetGroupPath, itemString)
-		if ok then
+		if ok and path and path ~= "" then
 			return path
 		end
 	end
 	return nil
 end
 
-function Groups.EnsureSmartGroups()
+function Groups.ListPaths()
 	local api = tsmGroupApi()
-	if not api then
-		Logger.Warning("GROUP_CREATE_FAILED", "Groups", "EnsureSmartGroups", "TSM_API unavailable")
-		return false
+	local result = {}
+	if not api or not api.GetGroupPaths then
+		return result
 	end
-	-- Prefer high-level APIs when present; otherwise no-op with warning (PARTIAL)
-	if api.CreateGroup then
+	local ok = pcall(api.GetGroupPaths, result)
+	if not ok then
+		return {}
+	end
+	return result
+end
+
+function Groups.GetItemsInGroup(path, includeSubGroups)
+	local api = tsmGroupApi()
+	local result = {}
+	if not api or not api.GetGroupItems or not path then
+		return result
+	end
+	local ok = pcall(api.GetGroupItems, path, includeSubGroups and true or false, result)
+	if not ok then
+		return {}
+	end
+	return result
+end
+
+function Groups.SmartGroupExists(path)
+	for _, p in ipairs(Groups.ListPaths()) do
+		if p == path then
+			return true
+		end
+	end
+	return false
+end
+
+function Groups.MissingSmartGroups()
+	local missing = {}
+	for _, path in ipairs(SMART_GROUPS) do
+		if not Groups.SmartGroupExists(path) then
+			missing[#missing + 1] = path
+		end
+	end
+	if not Groups.SmartGroupExists(C.SMART_ROOT) then
+		table.insert(missing, 1, C.SMART_ROOT)
+	end
+	return missing
+end
+
+function Groups.EnsureSmartGroups()
+	local cap = Groups.ProbeCapabilities()
+	if not cap.apiPresent then
+		Logger.Warning("GROUP_CREATE_FAILED", "Groups", "EnsureSmartGroups", "TSM_API unavailable")
+		return false, "NO_API"
+	end
+	if cap.createGroup then
+		local api = tsmGroupApi()
 		pcall(api.CreateGroup, C.SMART_ROOT)
 		for _, path in ipairs(SMART_GROUPS) do
 			pcall(api.CreateGroup, path)
 		end
-		return true
+		return true, "DIRECT_API"
 	end
-	Logger.Warning("GROUP_CREATE_FAILED", "Groups", "EnsureSmartGroups", "CreateGroup API not exposed — create Smart TSM groups manually once")
-	return false
+	-- Cannot create via API — caller must use import string / setup wizard
+	local missing = Groups.MissingSmartGroups()
+	if #missing == 0 then
+		return true, "ALREADY_PRESENT"
+	end
+	Logger.Warning(
+		"GROUP_CREATE_FAILED",
+		"Groups",
+		"EnsureSmartGroups",
+		"CreateGroup not in TSM_API 4.15.6 — import Smart groups via TSM Groups UI (" .. tostring(#missing) .. " missing)"
+	)
+	return false, "NEED_IMPORT", missing
 end
 
----Apply confirmed moves. Does NOT touch unrelated groups except moving listed items.
----@param moves table[] {itemString, fromGroup, toGroup}
+---Escape commas in group path for import (TSM uses ``).
+local function escapePath(path)
+	return (tostring(path or ""):gsub(",", "``"))
+end
+
+---Build a TSM-compatible group/item import string (old list format).
+---Format: group:Path,i:123,i:456,group:Other,i:789
+function Groups.BuildImportString(moves, opts)
+	opts = opts or {}
+	local includeEmptyGroups = opts.includeEmptyGroups
+	local byGroup = {}
+	local order = {}
+	for _, m in ipairs(moves or {}) do
+		local g = m.toGroup
+		local item = m.itemString
+		if g and item then
+			if not byGroup[g] then
+				byGroup[g] = {}
+				order[#order + 1] = g
+			end
+			byGroup[g][#byGroup[g] + 1] = item
+		end
+	end
+	if includeEmptyGroups then
+		for _, path in ipairs(SMART_GROUPS) do
+			if not byGroup[path] then
+				byGroup[path] = {}
+				order[#order + 1] = path
+			end
+		end
+		if not byGroup[C.SMART_ROOT] then
+			table.insert(order, 1, C.SMART_ROOT)
+			byGroup[C.SMART_ROOT] = {}
+		end
+	end
+	local parts = {}
+	-- Ensure root first if present
+	table.sort(order, function(a, b)
+		if a == C.SMART_ROOT then
+			return true
+		end
+		if b == C.SMART_ROOT then
+			return false
+		end
+		return tostring(a) < tostring(b)
+	end)
+	for _, g in ipairs(order) do
+		parts[#parts + 1] = "group:" .. escapePath(g)
+		for _, item in ipairs(byGroup[g] or {}) do
+			parts[#parts + 1] = item
+		end
+	end
+	local str = table.concat(parts, ",")
+	private.lastImportString = str
+	return str
+end
+
+function Groups.GetLastImportString()
+	return private.lastImportString
+end
+
+local function tryDirectSet(itemString, groupPath)
+	local api = tsmGroupApi()
+	if not api then
+		return false, "NO_API"
+	end
+	if api.SetGroup then
+		return pcall(api.SetGroup, itemString, groupPath)
+	end
+	if api.MoveItem then
+		return pcall(api.MoveItem, itemString, groupPath)
+	end
+	if api.SetItemGroup then
+		return pcall(api.SetItemGroup, itemString, groupPath)
+	end
+	return false, "NO_WRITE_API"
+end
+
+---Apply moves. On TSM 4.15.6 returns import-string mode unless write API appears.
+---@return boolean ok
+---@return table applied
+---@return table meta { mode, importString, failed }
 function Groups.ApplyMoves(moves, opts)
 	opts = opts or {}
-	local api = tsmGroupApi()
-	if not api or not api.SetCustomPrice and not api.GetGroupPath then
-		-- TSM_API historically exposes group helpers differently across builds
-	end
-	Undo = Smart:GetModule("Undo")
+	local Undo = Smart:GetModule("Undo")
+	local cap = Groups.ProbeCapabilities()
 	local applied = {}
-	local apiSet = api and (api.SetItemGroup or api.MoveItem)
-	if not api then
+	local failed = {}
+	local meta = { mode = cap.writeMode, importString = nil, failed = failed, claim = cap.claim }
+
+	if not cap.apiPresent then
 		Logger.Error("GROUP_MOVE_FAILED", "Groups", "ApplyMoves", "TSM_API missing")
-		return false, applied
+		return false, applied, meta
 	end
 
-	-- Documented TSM_API surface varies; try SetGroup / known names
-	local function setGroup(itemString, groupPath)
-		if api.SetGroup then
-			return pcall(api.SetGroup, itemString, groupPath)
-		end
-		if api.MoveItem then
-			return pcall(api.MoveItem, itemString, groupPath)
-		end
-		return false, "no set API"
-	end
-
-	Groups.EnsureSmartGroups()
-
+	-- Refresh fromGroup from live TSM before apply
 	for _, m in ipairs(moves or {}) do
-		local from = m.fromGroup or Groups.GetPathByItem(m.itemString)
-		local ok, err = setGroup(m.itemString, m.toGroup)
-		if ok then
-			applied[#applied + 1] = {
-				itemString = m.itemString,
-				fromGroup = from,
-				toGroup = m.toGroup,
-			}
-		else
-			Logger.Error("GROUP_MOVE_FAILED", "Groups", "ApplyMoves", tostring(err), {
-				itemId = m.itemString,
-				group = m.toGroup,
-			})
-		end
+		m.fromGroup = Groups.GetPathByItem(m.itemString) or m.fromGroup
 	end
 
-	if Undo and #applied > 0 then
-		Undo.Push({ type = "GROUP_MOVES", moves = applied, at = time() })
+	if cap.writeMode == "DIRECT_API" or cap.writeMode == "DIRECT_MOVE_ONLY" then
+		Groups.EnsureSmartGroups()
+		for _, m in ipairs(moves or {}) do
+			local ok, err = tryDirectSet(m.itemString, m.toGroup)
+			if ok then
+				applied[#applied + 1] = {
+					itemString = m.itemString,
+					fromGroup = m.fromGroup,
+					toGroup = m.toGroup,
+				}
+			else
+				failed[#failed + 1] = { itemString = m.itemString, error = tostring(err) }
+				Logger.Error("GROUP_MOVE_FAILED", "Groups", "ApplyMoves", tostring(err), {
+					itemId = m.itemString,
+					group = m.toGroup,
+				})
+			end
+		end
+		if Undo and #applied > 0 then
+			Undo.Push({ type = "GROUP_MOVES", moves = applied, mode = "DIRECT", at = time() })
+		end
+		meta.failed = failed
+		return #applied > 0, applied, meta
 	end
-	return #applied > 0, applied
+
+	-- IMPORT_STRING mode (default for Forever TSM 4.15.6)
+	local importStr = Groups.BuildImportString(moves, { includeEmptyGroups = opts.includeEmptyGroups })
+	meta.importString = importStr
+	meta.mode = "IMPORT_STRING"
+	-- Record intended moves for undo-as-reverse-import
+	for _, m in ipairs(moves or {}) do
+		applied[#applied + 1] = {
+			itemString = m.itemString,
+			fromGroup = m.fromGroup,
+			toGroup = m.toGroup,
+			pendingImport = true,
+		}
+	end
+	if Undo and #applied > 0 then
+		Undo.Push({
+			type = "GROUP_MOVES",
+			moves = applied,
+			mode = "IMPORT_STRING",
+			importString = importStr,
+			reverseImportString = Groups.BuildImportString((function()
+				local rev = {}
+				for _, m in ipairs(applied) do
+					if m.fromGroup then
+						rev[#rev + 1] = { itemString = m.itemString, toGroup = m.fromGroup }
+					end
+				end
+				return rev
+			end)()),
+			at = time(),
+		})
+	end
+	Logger.Info("UNKNOWN", "Groups", "ApplyMoves", "Import string prepared (" .. tostring(#applied) .. " items) — paste into TSM Groups → Import")
+	return true, applied, meta
+end
+
+function Groups.VerifyMoves(moves)
+	local okList, badList = {}, {}
+	for _, m in ipairs(moves or {}) do
+		local live = Groups.GetPathByItem(m.itemString)
+		if live == m.toGroup then
+			okList[#okList + 1] = m
+		else
+			badList[#badList + 1] = { itemString = m.itemString, expected = m.toGroup, actual = live }
+		end
+	end
+	return okList, badList
 end
 
 function Groups.IsSmartGroup(path)
 	if not path then
 		return false
 	end
-	return path == C.SMART_ROOT or path:find("^Smart TSM") ~= nil
+	return path == C.SMART_ROOT or path:find("^Smart TSM", 1, true) ~= nil
+end
+
+function Groups.RegisterRefreshCallback(cb)
+	local api = tsmGroupApi()
+	if not api or not api.RegisterGroupItemCallback or private.groupCallbackRegistered then
+		return false
+	end
+	local ok = pcall(api.RegisterGroupItemCallback, "WoWSmartTSM:Groups", function()
+		if cb then
+			pcall(cb)
+		end
+	end)
+	private.groupCallbackRegistered = ok and true or false
+	return private.groupCallbackRegistered
+end
+
+function Groups.OpenTSMGroupsHint()
+	return "TSM öffnen → Groups → Import String einfügen (oder Gruppe manuell anlegen). Smart TSM schreibt nicht in interne TSM-Strukturen."
 end
 
 Groups.SMART_GROUPS = SMART_GROUPS
+Groups.STRATEGY_TO_GROUP = {
+	QUICK_SELL = C.GROUPS.QUICK,
+	PROFIT_SELL = C.GROUPS.PROFIT,
+	RARE_SELL = C.GROUPS.RARE,
+	VENDOR = C.GROUPS.VENDOR,
+	HOLD = C.GROUPS.HOLD,
+	MANUAL_REVIEW = C.GROUPS.REVIEW,
+}
+
+---Compatibility helper: suggest target group + preview moves (read-only).
+function Groups.Suggest(decisions)
+	local moves = {}
+	for _, d in ipairs(decisions or {}) do
+		local to = d and (d.targetGroup or Groups.STRATEGY_TO_GROUP[d.strategy])
+		if d and d.itemString and to then
+			moves[#moves + 1] = {
+				itemString = d.itemString,
+				fromGroup = Groups.GetPathByItem(d.itemString) or d.currentGroup,
+				toGroup = to,
+				preview = true,
+			}
+		end
+	end
+	return moves
+end

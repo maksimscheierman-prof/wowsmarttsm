@@ -275,9 +275,19 @@ function BulkReview.ConfirmApply(shown)
 		print("|cffffcc00Halte Shift und klicke erneut auf Übernehmen zum Bestätigen.|r")
 		return
 	end
-	local ok, applied = Groups.ApplyMoves(moves)
-	History.Add("GROUP_APPLY", { count = #(applied or {}), ok = ok })
-	print("|cff4ecdc4[SmartTSM]|r Angewendet: " .. tostring(#(applied or {})))
+	local ok, applied, meta = Groups.ApplyMoves(moves)
+	History.Add("GROUP_APPLY", { count = #(applied or {}), ok = ok, mode = meta and meta.mode })
+	if meta and meta.mode == "IMPORT_STRING" then
+		if WoWSmartTSM_DB then
+			WoWSmartTSM_DB.lastGroupImportString = meta.importString
+		end
+		print("|cff4ecdc4[SmartTSM]|r Import-String bereit (" .. tostring(#(applied or {})) .. "). /smarttsm importstring")
+	else
+		print("|cff4ecdc4[SmartTSM]|r Angewendet: " .. tostring(#(applied or {})))
+		if meta and meta.failed and #meta.failed > 0 then
+			print("|cffff6666Fehlgeschlagen: " .. tostring(#meta.failed) .. "|r")
+		end
+	end
 	wipe(private.selected)
 end
 

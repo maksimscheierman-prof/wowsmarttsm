@@ -126,6 +126,15 @@ frame:SetScript("OnEvent", function(_, event, arg1)
 			end
 		end
 		pcall(Detect.Diagnose)
+		local Groups = Smart:GetModule("Groups")
+		if Groups and Groups.RegisterRefreshCallback then
+			pcall(Groups.RegisterRefreshCallback, function()
+				local ScanService = Smart:GetModule("ScanService")
+				if ScanService and ScanService.ReevaluateBags then
+					ScanService.ReevaluateBags({ reason = "tsm_group_callback", incremental = true })
+				end
+			end)
+		end
 		local tap = _G.SmartTSM_AppDataFreshness
 		local realmTs = tap and tap.realmDownloadTime or 0
 		local regionTs = tap and tap.regionDownloadTime or 0
