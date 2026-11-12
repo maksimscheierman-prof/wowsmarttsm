@@ -1,0 +1,52 @@
+# Local diagnostics with personal/runtime data
+diagnostics/local/
+diagnostics/*.local.*
+!diagnostics/.gitkeep
+!diagnostics/README.md
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg
+
+# Node / misc
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.bak
+
+# Packages / build output
+dist/
+build/
+*.zip
+!tests/fixtures/**/*.zip
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Secrets / local config
+.env
+.env.*
+tools/local_config.json
+tools/repair_runner.local.json
+*.pem
+*.key
+
+# WoW / TSM backups created by install scripts
+backups/
+*.sav.bak
+
+# OS
+Desktop.ini
+$RECYCLE.BIN/

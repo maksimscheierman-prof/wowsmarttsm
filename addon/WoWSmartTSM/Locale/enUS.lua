@@ -1,0 +1,23 @@
+local Smart = WoWSmartTSM
+local L = Smart:Module("LocaleData_enUS")
+
+L.APP_NAME = "WoW Smart TSM"
+L.DASHBOARD = "Dashboard"
+L.POSTING = "Posting"
+L.SKIPPED = "Skipped"
+L.VENDOR = "Vendor"
+L.HOLD = "Hold"
+L.HISTORY = "History"
+L.SETTINGS = "Settings"
+L.DIAGNOSTICS = "Diagnostics"
+L.SCAN = "Scan bags"
+L.APPLY = "Apply selected"
+L.UNDO = "Undo last group change"
+L.CONFIRM = "Confirm"
+L.CANCEL = "Cancel"
+L.DRY_RUN = "Dry run"
+L.SEARCH = "Search"
+L.EXPECTED_NET = "Expected net"
+L.DATA_QUALITY = "Data quality"
+L.VISUAL_ACCEPTANCE = "UI pending owner visual acceptance"
+L.SELL_FIRST = "Sell first, hold rarely"

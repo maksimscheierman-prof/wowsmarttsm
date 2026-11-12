@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>WoW Smart TSM — UI Mock (Owner Visual Acceptance)</title>
+  <style>
+    :root {
+      --bg: #14191d;
+      --panel: #1e262b;
+      --accent: #4ecdc4;
+      --text: #ebeded;
+      --muted: #9aa7ad;
+      --post: #59c773;
+      --vendor: #f2bf4d;
+      --hold: #8ca6f2;
+      --skip: #f27366;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: "Segoe UI", Tahoma, sans-serif;
+      background: linear-gradient(160deg, #0d1114, #1a242a 50%, #12181c);
+      color: var(--text); min-height: 100vh; padding: 24px;
+    }
+    .frame {
+      max-width: 960px; margin: 0 auto; background: rgba(20,25,29,.95);
+      border: 1px solid #3a4a50; border-radius: 8px; padding: 16px 16px 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.45);
+    }
+    h1 { margin: 0; font-size: 20px; color: var(--accent); }
+    .sub { color: var(--muted); font-size: 12px; margin: 4px 0 14px; }
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .tab {
+      background: #243036; border: 1px solid #3d5058; color: var(--text);
+      padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;
+    }
+    .tab.active { outline: 1px solid var(--accent); color: var(--accent); }
+    .panel { background: var(--panel); border: 1px solid #354449; border-radius: 6px; padding: 14px; min-height: 420px; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .card { background: #182024; border: 1px solid #2f3e44; border-radius: 6px; padding: 12px; }
+    .card .k { color: var(--muted); font-size: 12px; }
+    .card .v { font-size: 22px; margin-top: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #2c3a40; }
+    .post { color: var(--post); } .vendor { color: var(--vendor); }
+    .hold { color: var(--hold); } .skip { color: var(--skip); }
+    .banner {
+      margin-top: 16px; padding: 12px 14px; border-left: 3px solid var(--accent);
+      background: rgba(78,205,196,.08); color: var(--muted); font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <h1>WoW Smart TSM</h1>
+    <div class="sub">Zuerst verkaufen, selten halten — UI wartet auf visuelle Abnahme durch Owner</div>
+    <div class="tabs">
+      <div class="tab active">Dashboard</div>
+      <div class="tab">Posten</div>
+      <div class="tab">Übersprungen</div>
+      <div class="tab">Händler</div>
+      <div class="tab">Halten</div>
+      <div class="tab">Verlauf</div>
+      <div class="tab">Einstellungen</div>
+      <div class="tab">Diagnose</div>
+    </div>
+    <div class="panel">
+      <div class="grid">
+        <div class="card"><div class="k">Posten</div><div class="v post">14</div></div>
+        <div class="card"><div class="k">Optimierbar</div><div class="v skip">6</div></div>
+        <div class="card"><div class="k">Händler</div><div class="v vendor">11</div></div>
+        <div class="card"><div class="k">Halten</div><div class="v hold">2</div></div>
+        <div class="card"><div class="k">AH Netto (est.)</div><div class="v">42g 15s</div></div>
+        <div class="card"><div class="k">Vendorwert</div><div class="v">3g 80s</div></div>
+        <div class="card"><div class="k">Datenqualität</div><div class="v">78%</div></div>
+        <div class="card"><div class="k">Review</div><div class="v">3</div></div>
+      </div>
+      <h3 style="margin:18px 0 8px;font-size:14px;">Beispiel Skip</h3>
+      <table>
+        <thead><tr><th>Item</th><th>Status</th><th>Grund</th><th>Empfehlung</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Middle Map Fragment</td>
+            <td class="skip">SKIPPED</td>
+            <td>Konkurrenz unter bisherigem Mindestpreis (29s46c → 21s)</td>
+            <td>Niedrigeren Preis prüfen → Smart Quick Sell</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="banner">
+      Owner: Bitte diese Mock-Struktur und das Ingame-Fenster (`/smarttsm`) abnehmen.
+      Nach Freigabe keine eigenmächtigen Designänderungen. Siehe <code>docs/OWNER_REVIEW.md</code>.
+    </div>
+  </div>
+</body>
+</html>

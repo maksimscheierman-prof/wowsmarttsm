@@ -1,0 +1,82 @@
+## Interface: 16001, 120105, 50504, 20506, 11509
+## Title: |cff4ecdc4WoW Smart TSM|r
+## Notes: Intelligent AH companion for TradeSkillMaster — classify, price, explain skips, bulk review, vendor safely.
+## Notes-deDE: Intelligenter AH-Begleiter für TradeSkillMaster — klassifizieren, preisen, Skips erklären, Sammelreview, Vendor sicher.
+## Author: maksimscheierman-prof
+## Version: 0.1.0
+## SavedVariables: WoWSmartTSM_DB, WoWSmartTSM_Diagnostics
+## OptionalDeps: TradeSkillMaster, TradeSkillMaster_AppHelper, BugSack, !BugGrabber
+## DefaultState: enabled
+## X-Category: Auction
+## X-Website: https://github.com/maksimscheierman-prof/wowsmarttsm
+## X-License: MIT
+
+# Bootstrap
+Core\Namespace.lua
+Core\Constants.lua
+Core\Version.lua
+
+# Util
+Util\TableUtil.lua
+Util\MoneyUtil.lua
+Util\ItemUtil.lua
+Util\TimeUtil.lua
+Util\SafeCall.lua
+
+# Diagnostics first
+Diagnostics\ErrorCodes.lua
+Diagnostics\RingBuffer.lua
+Diagnostics\Privacy.lua
+Diagnostics\Logger.lua
+Diagnostics\SavedVariables.lua
+Diagnostics\Coverage.lua
+Diagnostics\SlashDiag.lua
+
+# Locale
+Locale\enUS.lua
+Locale\deDE.lua
+Locale\Locale.lua
+
+# TSM bridge
+TSM\Detect.lua
+TSM\Prices.lua
+TSM\Groups.lua
+TSM\Operations.lua
+TSM\SkipMap.lua
+
+# Engines (Pricing before Classify)
+Rules\ItemProfile.lua
+Rules\Protect.lua
+Rules\HoldPolicy.lua
+Pricing\Config.lua
+Pricing\Model.lua
+Pricing\Recommend.lua
+Rules\Classify.lua
+Rules\SkipAnalyzer.lua
+Rules\Engine.lua
+
+# Services
+Core\DB.lua
+Core\Undo.lua
+Core\ScanService.lua
+Core\VendorService.lua
+Core\History.lua
+Core\Commands.lua
+
+# UI
+UI\Theme.lua
+UI\Widgets.lua
+UI\MainFrame.lua
+UI\Dashboard.lua
+UI\PostingTab.lua
+UI\SkippedTab.lua
+UI\VendorTab.lua
+UI\HoldTab.lua
+UI\BulkReview.lua
+UI\HistoryTab.lua
+UI\SettingsTab.lua
+UI\DiagnosticsTab.lua
+UI\Init.lua
+
+# Addon entry
+Core\Addon.lua

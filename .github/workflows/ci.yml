@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Lua syntax + unit/integration (offline)
+        run: python tools/test_runner.py --all
+      - name: Doctor (paths may be absent on CI)
+        run: python tools/doctor.py
+        continue-on-error: true
+      - name: Package
+        run: python tools/package.py
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: WoWSmartTSM-package
+          path: dist/*.zip

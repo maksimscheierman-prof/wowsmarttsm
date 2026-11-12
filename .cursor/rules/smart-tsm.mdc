@@ -1,0 +1,14 @@
+---
+description: WoW Smart TSM agent rules
+globs:
+  - "**/*"
+---
+
+# WoW Smart TSM
+
+1. Run `python tools/doctor.py` and check `diagnostics/repair-queue.json` before new features.
+2. Never modify original TradeSkillMaster addon files.
+3. Sell first, hold rarely — follow `docs/SMART_HOLD_POLICY.md`.
+4. Offline tests ≠ in-game tests.
+5. Visual changes after owner acceptance need owner approval.
+6. No invented Cursor APIs; repair runner stays disabled by default.
