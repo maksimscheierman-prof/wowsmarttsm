@@ -25,13 +25,29 @@ function Commands.Handle(msg)
 	elseif cmd == "status" then
 		SlashDiag.Status()
 		local ScanService = Smart:GetModule("ScanService")
+		local AutoEval = Smart:GetModule("AutoEval")
+		local Health = Smart:GetModule("Health")
 		local meta = ScanService.GetLastMeta and ScanService.GetLastMeta() or {}
-		print(string.format(
-			"|cff4ecdc4[SmartTSM]|r Last reeval: reason=%s ahScan=%s count=%s",
-			tostring(meta.reason),
-			tostring(meta.startedAhScan),
-			tostring(meta.count)
-		))
+		local eval = ScanService.GetEvalStatus and ScanService.GetEvalStatus() or {}
+		local auto = AutoEval and AutoEval.GetState and AutoEval.GetState() or {}
+		if eval.status == "NEVER_RUN" or meta.reason == nil then
+			print("|cffffcc00[SmartTSM]|r Last reeval: noch keine Bewertung (status=NEVER_RUN) — AutoEval pending=" .. tostring(auto.pending) .. " lastStatus=" .. tostring(auto.lastStatus))
+		else
+			print(string.format(
+				"|cff4ecdc4[SmartTSM]|r Last reeval: status=%s reason=%s ahScan=%s count=%s",
+				tostring(eval.status),
+				tostring(meta.reason),
+				tostring(meta.startedAhScan),
+				tostring(meta.count)
+			))
+			print("|cff4ecdc4[SmartTSM]|r " .. tostring(eval.label))
+		end
+		if Health and Health.GetReport then
+			local h = Health.GetReport()
+			if h.loadError or h.loggerOk == false then
+				print("|cffff6666[SmartTSM]|r Bootstrap/Logger-Problem: " .. tostring(h.loadError or h.loggerError or "unknown"))
+			end
+		end
 		local Freshness = Smart:GetModule("Freshness")
 		local realm = Freshness and select(1, Freshness.GetCategoryTimestamp("realm"))
 		local region = Freshness and select(1, Freshness.GetCategoryTimestamp("region"))

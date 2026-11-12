@@ -11,6 +11,7 @@ local Prices = Smart:Module("Prices")
 
 local private = {
 	loaded = false,
+	loadError = nil,
 }
 
 local frame = CreateFrame("Frame", "WoWSmartTSMEventFrame")
@@ -25,44 +26,102 @@ local function ensureSlash()
 	end
 end
 
+local function recordLoadFailure(err)
+	private.loadError = tostring(err)
+	print("|cffff6666[WoW Smart TSM]|r load failed: " .. tostring(err))
+	-- Persist into diagnostics SV if already available so UI does not show a clean state
+	WoWSmartTSM_Diagnostics = WoWSmartTSM_Diagnostics or {}
+	WoWSmartTSM_Diagnostics.loadError = private.loadError
+	WoWSmartTSM_Diagnostics.initStatus = {
+		ok = false,
+		failed = true,
+		error = private.loadError,
+	}
+	pcall(function()
+		if Logger and Logger.Error then
+			Logger.Error("UNKNOWN", "Addon", "ADDON_LOADED", tostring(err), {
+				state = { phase = "bootstrap" },
+			})
+		end
+	end)
+	pcall(Commands.Register)
+end
+
 local function onLoaded()
 	if private.loaded then
 		return
 	end
 	private.loaded = true
-	SV.Init()
-	Logger.Init()
-	Logger.InstallErrorHandler()
-	Commands.Register()
-	UI.Init()
-	PostingCache.Init()
-	AutoEval.Init()
-	Prices.VerifyRegisteredSources()
-	Logger.Info("UNKNOWN", "Addon", "ADDON_LOADED", "WoW Smart TSM " .. Version.GetAddonVersion() .. " loaded (TSM-data reeval, no AH scan)")
+
+	-- SavedVariables first so Logger can persist early failures
+	local okSV, errSV = pcall(SV.Init)
+	if not okSV then
+		recordLoadFailure("SavedVariables.Init: " .. tostring(errSV))
+	end
+
+	local okLog, errLog = pcall(Logger.Init)
+	if not okLog then
+		recordLoadFailure("Logger.Init: " .. tostring(errLog))
+	elseif Logger.GetInitStatus then
+		local st = Logger.GetInitStatus()
+		if st and st.failed then
+			-- Soft fail: logging still works via fallback buffer — surface in diagnostics, continue boot
+			WoWSmartTSM_Diagnostics = WoWSmartTSM_Diagnostics or {}
+			WoWSmartTSM_Diagnostics.initStatus = st
+			print("|cffffcc00[SmartTSM]|r Logger soft-fail: " .. tostring(st.error))
+		end
+	end
+
+	pcall(Logger.InstallErrorHandler)
+	pcall(Commands.Register)
+	pcall(UI.Init)
+	pcall(PostingCache.Init)
+	pcall(AutoEval.Init)
+	pcall(Prices.VerifyRegisteredSources)
+
+	if not private.loadError then
+		Logger.Info(
+			"UNKNOWN",
+			"Addon",
+			"ADDON_LOADED",
+			"WoW Smart TSM " .. Version.GetAddonVersion() .. " loaded (TSM-data reeval, no AH scan)"
+		)
+	end
+end
+
+function Smart.GetLoadError()
+	return private.loadError
 end
 
 frame:SetScript("OnEvent", function(_, event, arg1)
 	if event == "ADDON_LOADED" and arg1 == Smart.ADDON_NAME then
 		local ok, err = pcall(onLoaded)
 		if not ok then
-			print("|cffff6666[WoW Smart TSM]|r load failed: " .. tostring(err))
-			-- Still try to expose slash for diagnostics
-			pcall(Commands.Register)
+			recordLoadFailure(err)
 		end
 	elseif event == "PLAYER_LOGIN" then
-		-- Fallback: ensure slash exists even if ADDON_LOADED path had issues
 		ensureSlash()
 		if Commands.IsRegistered and Commands.IsRegistered() then
 			-- ok
 		else
 			print("|cffff6666[SmartTSM]|r WARN: /smarttsm nicht registriert — Commands.Register fehlgeschlagen")
 		end
-		Detect.Diagnose()
+		-- Catch-up AutoEval if Init ran before login events
+		if AutoEval and AutoEval.Request then
+			local st = AutoEval.GetState and AutoEval.GetState() or {}
+			if not st.bootstrapped or st.lastStatus == "IDLE" then
+				AutoEval.Request("player_login_catchup")
+			end
+		end
+		pcall(Detect.Diagnose)
 		local tap = _G.SmartTSM_AppDataFreshness
 		local realmTs = tap and tap.realmDownloadTime or 0
 		local regionTs = tap and tap.regionDownloadTime or 0
 		print("|cff4ecdc4[WoW Smart TSM]|r " .. Version.GetAddonVersion() .. " — /smarttsm (nutzt TSM AuctionDB, startet keinen AH-Scan)")
 		print("|cff4ecdc4[SmartTSM]|r Slash OK=" .. tostring(Commands.IsRegistered and Commands.IsRegistered()))
+		if private.loadError then
+			print("|cffff6666[SmartTSM]|r Bootstrap-Fehler: " .. tostring(private.loadError))
+		end
 		if realmTs == 0 and regionTs == 0 then
 			print("|cffffcc00[SmartTSM]|r Kein AppHelper-downloadTime erfasst — DataTap/AppHelper prüfen. Preise ggf. trotzdem via TSM_API.")
 		end

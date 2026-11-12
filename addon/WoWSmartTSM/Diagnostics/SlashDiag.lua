@@ -22,7 +22,26 @@ function SlashDiag.Status()
 		printMsg("TSM loaded=" .. tostring(st.tsmLoaded) .. " AppHelper=" .. tostring(st.appHelperLoaded))
 	end
 	local cov = Coverage.GetReport()
-	printMsg(string.format("Errors own=%d lua=%d dupes=%d", cov.ownErrors, cov.capturedLuaErrors, cov.suppressedDuplicates))
+	local init = Logger.GetInitStatus and Logger.GetInitStatus() or {}
+	local loadError = (Smart.GetLoadError and Smart.GetLoadError())
+		or (WoWSmartTSM_Diagnostics and WoWSmartTSM_Diagnostics.loadError)
+	printMsg(string.format(
+		"Errors own=%d lua=%d dupes=%d early=%d | loggerInitOk=%s",
+		cov.ownErrors or 0,
+		cov.capturedLuaErrors or 0,
+		cov.suppressedDuplicates or 0,
+		cov.earlyErrors or 0,
+		tostring(cov.loggerInitOk)
+	))
+	if init.failed or loadError then
+		printMsg("|cffff6666WARN|r Logger/Bootstrap-Fehler — Zähler allein bedeuten keinen fehlerfreien Zustand")
+		if init.error then
+			printMsg("Logger.Init error: " .. tostring(init.error))
+		end
+		if loadError then
+			printMsg("Load error: " .. tostring(loadError))
+		end
+	end
 end
 
 function SlashDiag.Errors(limit)

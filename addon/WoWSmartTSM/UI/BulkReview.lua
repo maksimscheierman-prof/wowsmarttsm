@@ -1,9 +1,8 @@
 local Smart = WoWSmartTSM
 local Locale = Smart:Module("Locale")
 local Money = Smart:Module("MoneyUtil")
-local Widgets = Smart:Module("Widgets")
+local Layout = Smart:Module("Layout")
 local Theme = Smart:Module("Theme")
-local C = Smart:Module("Constants")
 local Groups = Smart:Module("Groups")
 local History = Smart:Module("History")
 local Undo = Smart:Module("Undo")
@@ -12,30 +11,30 @@ local BulkReview = Smart:Module("BulkReview")
 
 local private = {
 	selected = {},
-	filterStrategy = nil,
-	filterSkip = nil,
 	search = "",
 }
 
-local function clearChildren(parent)
-	local children = { parent:GetChildren() }
-	for _, child in ipairs(children) do
-		child:Hide()
-		child:SetParent(nil)
-	end
-end
-
-local function matches(d, filterStrategy, filterSkip, search)
+local function matches(d, opts, search)
 	if not d then
 		return false
 	end
-	if filterStrategy and d.strategy ~= filterStrategy then
+	if opts.strategy and d.strategy ~= opts.strategy then
 		return false
 	end
-	if filterSkip then
-		if not d.skip or d.skip.code ~= filterSkip then
+	if opts.strategies then
+		local ok = false
+		for _, s in ipairs(opts.strategies) do
+			if d.strategy == s then
+				ok = true
+				break
+			end
+		end
+		if not ok then
 			return false
 		end
+	end
+	if opts.skipOnly and not d.skip then
+		return false
 	end
 	if search and search ~= "" then
 		local name = (d.name or ""):lower()
@@ -46,63 +45,25 @@ local function matches(d, filterStrategy, filterSkip, search)
 	return true
 end
 
+local function selectedCount()
+	local n = 0
+	for _ in pairs(private.selected) do
+		n = n + 1
+	end
+	return n
+end
+
 function BulkReview.Render(parent, opts)
 	opts = opts or {}
-	clearChildren(parent)
-	private.filterStrategy = opts.strategy
-	private.filterSkip = opts.skipCode
 	local L = Locale.T
 	local ScanService = Smart:GetModule("ScanService")
 	local results = ScanService.GetLastResults() or {}
-
-	local title = Widgets.Label(parent, opts.title or "Review", 14)
-	title:SetPoint("TOPLEFT", 16, -12)
-
-	local searchBox = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
-	searchBox:SetSize(180, 20)
-	searchBox:SetPoint("TOPRIGHT", -160, -12)
-	searchBox:SetAutoFocus(false)
-	searchBox:SetText(private.search or "")
-	searchBox:SetScript("OnTextChanged", function(self)
-		private.search = self:GetText() or ""
-	end)
-
-	local refresh = Widgets.Button(parent, L("SEARCH"), 80, 22, function()
-		BulkReview.Render(parent, opts)
-	end)
-	refresh:SetPoint("TOPRIGHT", -70, -12)
-
-	local header = Widgets.Label(parent, "Sel | Item | Strategie | Gruppe | Menge | Netto | Grund", 11)
-	header:SetPoint("TOPLEFT", 16, -40)
-
-	local scroll = Widgets.ScrollList(parent, nil)
-	scroll:SetPoint("TOPLEFT", 12, -58)
-	scroll:SetPoint("BOTTOMRIGHT", -32, 48)
-	local child = scroll.child
-	child:SetWidth(parent:GetWidth() - 50)
-
-	local y = 0
-	local rowH = 22
 	local shown = {}
 	for _, d in ipairs(results) do
-		if matches(d, opts.strategy, opts.skipCode, private.search) then
-			local ok = true
-			if opts.strategies then
-				ok = false
-				for _, s in ipairs(opts.strategies) do
-					if d.strategy == s then
-						ok = true
-						break
-					end
-				end
-			end
-			if ok then
-				shown[#shown + 1] = d
-			end
+		if matches(d, opts, private.search) then
+			shown[#shown + 1] = d
 		end
 	end
-
-	-- sort by strategy then name
 	table.sort(shown, function(a, b)
 		if a.strategy == b.strategy then
 			return tostring(a.name or "") < tostring(b.name or "")
@@ -110,79 +71,131 @@ function BulkReview.Render(parent, opts)
 		return tostring(a.strategy) < tostring(b.strategy)
 	end)
 
-	for i, d in ipairs(shown) do
-		local row = CreateFrame("Frame", nil, child)
-		row:SetSize(800, rowH)
-		row:SetPoint("TOPLEFT", 0, -y)
+	local root = Layout.Begin(parent)
+	Layout.HeaderTitle(root.header, opts.title or "Review")
+	Layout.HeaderButton(root.header, L("SCAN"), function()
+		ScanService.ReevaluateBags({ reason = "ui_button" })
+		BulkReview.Render(parent, opts)
+	end)
 
-		local cb = CreateFrame("CheckButton", nil, row, "ChatConfigCheckButtonTemplate")
-		cb:SetPoint("LEFT", 0, 0)
-		cb:SetChecked(private.selected[d.itemString] == true)
-		cb:SetScript("OnClick", function(self)
-			private.selected[d.itemString] = self:GetChecked() and true or nil
-		end)
+	local stack = Layout.BodyStack(root)
+	Layout.AddText(
+		stack,
+		string.format("%d Einträge — Klick auf Zeile wählt aus; Shift+Übernehmen bestätigt", #shown),
+		"GameFontHighlightSmall",
+		Theme.COLORS.muted
+	)
+	Layout.AddGap(stack, 4)
 
-		local col = Theme.StrategyColor(d.strategy)
-		local name = Widgets.Label(row, d.name or d.itemString or "?", 11)
-		name:SetPoint("LEFT", 28, 0)
-		name:SetWidth(200)
-		name:SetJustifyH("LEFT")
-		name:SetTextColor(col[1], col[2], col[3], 1)
-
-		local strat = Widgets.Label(row, d.strategy or "-", 11)
-		strat:SetPoint("LEFT", 240, 0)
-		strat:SetWidth(120)
-
-		local grp = Widgets.Label(row, d.targetGroup or "-", 10)
-		grp:SetPoint("LEFT", 370, 0)
-		grp:SetWidth(160)
-
-		local qty = Widgets.Label(row, tostring(d.quantity or 1), 11)
-		qty:SetPoint("LEFT", 540, 0)
-
-		local net = Widgets.Label(row, Money.Format(d.expectedNet or 0, true), 11)
-		net:SetPoint("LEFT", 580, 0)
-
+	local columns = {
+		{ title = "Sel", width = 36 },
+		{ title = "Item", width = 180 },
+		{ title = "Strategie", width = 110 },
+		{ title = "Gruppe", width = 160 },
+		{ title = "Menge", width = 50 },
+		{ title = "Netto", width = 90 },
+		{ title = "Grund", width = 180 },
+	}
+	local rows = {}
+	for _, d in ipairs(shown) do
 		local reason = "-"
 		if d.skip and d.skip.code then
 			reason = SkipMap.Describe(d.skip.code)
 		elseif d.reasons and d.reasons[1] then
 			reason = d.reasons[1]
 		end
-		local rs = Widgets.Label(row, reason, 10)
-		rs:SetPoint("LEFT", 660, 0)
-		rs:SetWidth(200)
+		local selected = private.selected[d.itemString] and "✓" or ""
+		rows[#rows + 1] = {
+			selected,
+			{ text = d.name or d.itemString or "?", color = Theme.StrategyColor(d.strategy) },
+			d.strategy or "-",
+			d.targetGroup or "-",
+			tostring(d.quantity or 1),
+			Money.Format(d.expectedNet or 0, true),
+			reason,
+			_decision = d,
+		}
+	end
 
-		row:SetScript("OnEnter", function()
-			GameTooltip:SetOwner(row, "ANCHOR_CURSOR")
+	Layout.AddTable(stack, columns, rows, {
+		maxHeight = 300,
+		rowHeight = 22,
+		onClick = function(row)
+			local d = row._decision
+			if not d or not d.itemString then
+				return
+			end
+			if private.selected[d.itemString] then
+				private.selected[d.itemString] = nil
+			else
+				private.selected[d.itemString] = true
+			end
+			BulkReview.Render(parent, opts)
+		end,
+		onEnter = function(row)
+			local d = row._decision
+			if not d then
+				return
+			end
+			GameTooltip:SetOwner(UIParent, "ANCHOR_CURSOR")
 			GameTooltip:AddLine(d.name or "?", 1, 1, 1)
 			if d.skip and d.skip.formatted then
 				GameTooltip:AddLine(d.skip.formatted, 0.9, 0.9, 0.7, true)
 			else
 				GameTooltip:AddLine(table.concat(d.reasons or {}, ", "), 0.8, 0.8, 0.8, true)
 			end
+			GameTooltip:AddLine("Linksklick: Auswahl umschalten", 0.6, 0.7, 0.7, true)
 			GameTooltip:Show()
-		end)
-		row:SetScript("OnLeave", function()
+		end,
+		onLeave = function()
 			GameTooltip:Hide()
-		end)
+		end,
+	})
 
-		y = y + rowH
-	end
-	child:SetHeight(math.max(y, 10))
-
-	local apply = Widgets.Button(parent, L("APPLY"), 150, 24, function()
-		BulkReview.ConfirmApply(shown)
-	end)
-	apply:SetPoint("BOTTOMLEFT", 16, 14)
-
-	local undo = Widgets.Button(parent, L("UNDO"), 220, 24, function()
-		Undo.UndoLast()
-	end)
-	undo:SetPoint("LEFT", apply, "RIGHT", 8, 0)
-
-	local count = Widgets.Label(parent, string.format("%d Items", #shown), 11)
-	count:SetPoint("BOTTOMRIGHT", -16, 18)
+	Layout.AddButtonRow(stack, {
+		{
+			text = "Alle wählen",
+			width = 110,
+			onClick = function()
+				for _, d in ipairs(shown) do
+					if d.itemString then
+						private.selected[d.itemString] = true
+					end
+				end
+				BulkReview.Render(parent, opts)
+			end,
+		},
+		{
+			text = "Keine",
+			width = 80,
+			onClick = function()
+				wipe(private.selected)
+				BulkReview.Render(parent, opts)
+			end,
+		},
+		{
+			text = L("APPLY") .. " (Shift)",
+			width = 140,
+			onClick = function()
+				BulkReview.ConfirmApply(shown)
+			end,
+		},
+		{
+			text = L("UNDO"),
+			width = 160,
+			onClick = function()
+				Undo.UndoLast()
+			end,
+		},
+	})
+	Layout.AddText(
+		stack,
+		"Bestätigung nur mit Shift+Übernehmen. Keine automatische Gruppenänderung ohne Bestätigung.",
+		"GameFontHighlightSmall",
+		Theme.COLORS.muted
+	)
+	Layout.FinishStack(stack)
+	Layout.FooterText(root.footer, string.format("%d ausgewählt / %d sichtbar", selectedCount(), #shown))
 end
 
 function BulkReview.ConfirmApply(shown)
@@ -200,26 +213,18 @@ function BulkReview.ConfirmApply(shown)
 		print("|cff4ecdc4[SmartTSM]|r Keine Auswahl.")
 		return
 	end
-	-- Preview summary
 	print("|cff4ecdc4[SmartTSM]|r Vorschau Gruppenänderungen: " .. tostring(#moves))
 	for i = 1, math.min(8, #moves) do
 		local m = moves[i]
 		print(string.format("  %s -> %s", tostring(m.itemString), tostring(m.toGroup)))
 	end
-	if #moves > 8 then
-		print("  ...")
-	end
-	print("|cff4ecdc4[SmartTSM]|r Bestätigen mit /smarttsm (Bulk-Apply im UI erneut mit Shift)")
-
-	-- Require Shift for actual apply to avoid accidents
 	if not IsShiftKeyDown or not IsShiftKeyDown() then
 		print("|cffffcc00Halte Shift und klicke erneut auf Übernehmen zum Bestätigen.|r")
 		return
 	end
-
 	local ok, applied = Groups.ApplyMoves(moves)
-	History.Add("GROUP_APPLY", { count = #applied, ok = ok })
-	print("|cff4ecdc4[SmartTSM]|r Angewendet: " .. tostring(#applied))
+	History.Add("GROUP_APPLY", { count = #(applied or {}), ok = ok })
+	print("|cff4ecdc4[SmartTSM]|r Angewendet: " .. tostring(#(applied or {})))
 	wipe(private.selected)
 end
 

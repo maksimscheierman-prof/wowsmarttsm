@@ -18,6 +18,8 @@ local private = {
 		usedTsmApi = false,
 		postingCacheHits = 0,
 		needsLiveCompetition = 0,
+		status = "NEVER_RUN",
+		error = nil,
 	},
 }
 
@@ -113,11 +115,24 @@ function ScanService.ReevaluateBags(opts)
 	local ok, items = pcall(iterBags)
 	if not ok then
 		Logger.Error("CLASSIFY_FAILED", "ScanService", "ReevaluateBags", tostring(items))
+		private.lastResults = {}
+		private.lastMeta = {
+			at = Time.Now(),
+			reason = reason,
+			count = 0,
+			startedAhScan = false,
+			usedTsmApi = Prices.IsApiReady(),
+			postingCacheHits = 0,
+			needsLiveCompetition = 0,
+			incremental = opts.incremental and true or false,
+			status = "FAILED",
+			error = tostring(items),
+		}
 		return {}
 	end
 
 	local decisions = Engine.EvaluateMany(items)
-	local cacheHits, needLive = 0, 0
+	local cacheHits, needLive, missingPrices = 0, 0, 0
 	for i, d in ipairs(decisions) do
 		if d then
 			local raw = items[i]
@@ -129,6 +144,9 @@ function ScanService.ReevaluateBags(opts)
 				needLive = needLive + 1
 				d.needsLiveCompetition = true
 			end
+			if raw and raw.freshness and raw.freshness.missing and #raw.freshness.missing > 0 then
+				missingPrices = missingPrices + 1
+			end
 			d.sourceMeta = raw and raw.sourceMeta or d.sourceMeta
 			d.freshness = raw and raw.freshness or d.freshness
 			d.minBuyout = raw and raw.minBuyout or d.minBuyout
@@ -136,6 +154,17 @@ function ScanService.ReevaluateBags(opts)
 			d.currentGroup = raw and raw.currentGroup
 			PostingCache.RememberDecision(d)
 		end
+	end
+
+	local status
+	if not Prices.IsApiReady() then
+		status = "TSM_DATA_MISSING"
+	elseif #decisions == 0 then
+		status = "NO_ITEMS"
+	elseif missingPrices == #decisions then
+		status = "TSM_DATA_MISSING"
+	else
+		status = "OK"
 	end
 
 	private.lastResults = decisions
@@ -148,6 +177,9 @@ function ScanService.ReevaluateBags(opts)
 		postingCacheHits = cacheHits,
 		needsLiveCompetition = needLive,
 		incremental = opts.incremental and true or false,
+		status = status,
+		error = nil,
+		missingPriceStacks = missingPrices,
 	}
 	if WoWSmartTSM_DB then
 		WoWSmartTSM_DB.lastScan = {
@@ -156,6 +188,7 @@ function ScanService.ReevaluateBags(opts)
 			reason = reason,
 			startedAhScan = false,
 			mode = "TSM_DATA_REEVAL",
+			status = status,
 		}
 	end
 	Logger.Info(
@@ -163,9 +196,10 @@ function ScanService.ReevaluateBags(opts)
 		"ScanService",
 		"ReevaluateBags",
 		string.format(
-			"Reevaluated %d stacks via TSM data (reason=%s, ahScan=false, cacheHits=%d, needLiveCompetition=%d)",
+			"Reevaluated %d stacks via TSM data (reason=%s, status=%s, ahScan=false, cacheHits=%d, needLiveCompetition=%d)",
 			#decisions,
 			reason,
+			status,
 			cacheHits,
 			needLive
 		)
@@ -184,6 +218,38 @@ end
 
 function ScanService.GetLastMeta()
 	return private.lastMeta
+end
+
+local EVAL_LABELS = {
+	NEVER_RUN = "Noch keine Bewertung durchgeführt",
+	NO_ITEMS = "Keine Items in den Taschen gefunden",
+	FAILED = "Bewertung fehlgeschlagen",
+	TSM_DATA_MISSING = "TSM-Daten fehlen oder API nicht bereit",
+	OK = "Erfolgreich bewertet",
+}
+
+function ScanService.GetEvalStatus()
+	local meta = private.lastMeta or {}
+	local status = meta.status or "NEVER_RUN"
+	local label = EVAL_LABELS[status] or status
+	if status == "OK" then
+		local sum = ScanService.Summarize(private.lastResults)
+		if (sum.toPost + sum.vendor + sum.hold + sum.optimizable) == 0 then
+			label = "Erfolgreich bewertet — keine Verkaufskandidaten"
+		else
+			label = string.format("Erfolgreich bewertet (%d Stacks)", meta.count or 0)
+		end
+	elseif status == "FAILED" and meta.error then
+		label = "Bewertung fehlgeschlagen: " .. tostring(meta.error)
+	end
+	return {
+		status = status,
+		label = label,
+		at = meta.at,
+		reason = meta.reason,
+		count = meta.count or 0,
+		error = meta.error,
+	}
 end
 
 function ScanService.Summarize(results)

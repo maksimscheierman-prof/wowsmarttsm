@@ -6,7 +6,7 @@ local HoldTab = Smart:Module("HoldTab")
 
 function HoldTab.Render(parent)
 	BulkReview.Render(parent, {
-		title = Locale.T("HOLD") .. " (Filter, kein Dauerbefehl)",
+		title = Locale.T("HOLD") .. " (Filter)",
 		strategy = C.STRATEGIES.HOLD,
 	})
 end

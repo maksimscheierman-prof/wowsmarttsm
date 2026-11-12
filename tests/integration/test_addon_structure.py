@@ -11,6 +11,8 @@ REQUIRED = [
     "WoWSmartTSM.toc",
     "Core/Addon.lua",
     "Core/AutoEval.lua",
+    "Core/Health.lua",
+    "Core/ScanService.lua",
     "Diagnostics/Logger.lua",
     "Rules/HoldPolicy.lua",
     "Rules/Classify.lua",
@@ -18,7 +20,11 @@ REQUIRED = [
     "TSM/Prices.lua",
     "TSM/Freshness.lua",
     "TSM/PostingCache.lua",
+    "UI/Layout.lua",
     "UI/MainFrame.lua",
+    "UI/Dashboard.lua",
+    "UI/DiagnosticsTab.lua",
+    "UI/BulkReview.lua",
 ]
 
 

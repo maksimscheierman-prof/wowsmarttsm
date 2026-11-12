@@ -137,7 +137,10 @@ function Prices.Collect(itemString)
 	}
 
 	if not itemString then
-		out.missing = { unpack(SOURCES) }
+		-- Avoid unpack()/table.unpack — copy explicitly for Forever Lua safety
+		for _, src in ipairs(SOURCES) do
+			out.missing[#out.missing + 1] = src
+		end
 		return out
 	end
 

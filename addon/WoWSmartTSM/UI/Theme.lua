@@ -1,17 +1,21 @@
 local Smart = WoWSmartTSM
 local Theme = Smart:Module("Theme")
 
+-- Calm, readable palette (avoid loud red/yellow defaults)
 Theme.COLORS = {
-	bg = { 0.08, 0.10, 0.12, 0.95 },
-	panel = { 0.12, 0.15, 0.18, 0.98 },
-	accent = { 0.30, 0.80, 0.77, 1 },
-	text = { 0.92, 0.93, 0.94, 1 },
-	muted = { 0.65, 0.70, 0.72, 1 },
-	post = { 0.35, 0.78, 0.45, 1 },
-	vendor = { 0.95, 0.75, 0.30, 1 },
-	hold = { 0.55, 0.65, 0.95, 1 },
-	skip = { 0.95, 0.45, 0.40, 1 },
-	review = { 0.80, 0.80, 0.55, 1 },
+	bg = { 0.07, 0.09, 0.11, 0.96 },
+	panel = { 0.11, 0.14, 0.17, 0.98 },
+	accent = { 0.35, 0.72, 0.70, 1 },
+	text = { 0.90, 0.92, 0.93, 1 },
+	muted = { 0.62, 0.67, 0.70, 1 },
+	post = { 0.42, 0.72, 0.50, 1 },
+	vendor = { 0.82, 0.70, 0.40, 1 },
+	hold = { 0.55, 0.65, 0.85, 1 },
+	skip = { 0.85, 0.55, 0.48, 1 },
+	review = { 0.75, 0.75, 0.55, 1 },
+	ok = { 0.45, 0.75, 0.55, 1 },
+	warn = { 0.85, 0.70, 0.35, 1 },
+	bad = { 0.85, 0.45, 0.42, 1 },
 }
 
 function Theme.StrategyColor(strategy)

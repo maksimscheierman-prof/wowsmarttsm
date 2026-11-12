@@ -9,26 +9,30 @@ local private = {
 	pendingReason = nil,
 	debounceAt = 0,
 	debounceSeconds = 1.5,
-	bucketSeconds = 0.05,
+	loginDelaySeconds = 3.0,
 	queue = {},
 	running = false,
 	lastFullAt = 0,
+	lastStatus = "IDLE",
+	lastError = nil,
 	enabled = true,
+	bootstrapped = false,
 }
 
-local function schedule(reason, itemKeys)
+local function schedule(reason, itemKeys, delay)
 	if not private.enabled then
 		return
 	end
 	private.pending = true
 	private.pendingReason = reason or private.pendingReason or "unknown"
-	private.debounceAt = GetTime() + private.debounceSeconds
+	private.debounceAt = GetTime() + (delay or private.debounceSeconds)
+	private.lastStatus = "SCHEDULED"
 	if itemKeys then
 		for _, k in ipairs(itemKeys) do
 			private.queue[k] = true
 		end
 	else
-		private.queue["*"] = true -- full bag reevaluation
+		private.queue["*"] = true
 	end
 end
 
@@ -40,21 +44,22 @@ local function process()
 	private.pending = false
 	local reason = private.pendingReason or "debounce"
 	private.pendingReason = nil
+	private.lastStatus = "RUNNING"
 
 	local full = private.queue["*"] == true
 	wipe(private.queue)
 
 	local ScanService = Smart:GetModule("ScanService")
 	local ok, err = pcall(function()
-		if full then
-			ScanService.ReevaluateBags({ reason = reason, incremental = false })
-		else
-			-- incremental path currently falls back to full bag pass but skips AH scan always
-			ScanService.ReevaluateBags({ reason = reason, incremental = true })
-		end
+		ScanService.ReevaluateBags({ reason = reason, incremental = not full })
 	end)
 	if not ok then
+		private.lastStatus = "FAILED"
+		private.lastError = tostring(err)
 		Logger.Error("CLASSIFY_FAILED", "AutoEval", "process", tostring(err))
+	else
+		private.lastStatus = "OK"
+		private.lastError = nil
 	end
 	private.lastFullAt = Time.Now()
 	private.running = false
@@ -62,30 +67,31 @@ end
 
 function AutoEval.Init()
 	if private.frame then
+		-- Still ensure a login reevaluation if we missed PLAYER_LOGIN
+		if not private.bootstrapped then
+			schedule("init_catchup", nil, private.loginDelaySeconds)
+			private.bootstrapped = true
+		end
 		return
 	end
 	local f = CreateFrame("Frame", "WoWSmartTSMAutoEvalFrame")
 	private.frame = f
 	f:RegisterEvent("PLAYER_LOGIN")
 	f:RegisterEvent("PLAYER_ENTERING_WORLD")
-	-- bag events (classic + modern)
 	f:RegisterEvent("BAG_UPDATE")
-	if C_Container and ContainerFrameUtil_GetShownFrameForFrame then
-		-- keep BAG_UPDATE
-	end
 	f:RegisterEvent("PLAYERBANKSLOTS_CHANGED")
-	f:RegisterEvent("ITEM_LOCK_CHANGED")
 
 	f:SetScript("OnEvent", function(_, event, arg1)
-		if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
-			-- Delay so TSM AppHelper AuctionDB finishes loading
-			schedule(event == "PLAYER_LOGIN" and "login" or "reload_or_world", nil)
-			private.debounceAt = GetTime() + 3.0
+		if event == "PLAYER_LOGIN" then
+			schedule("login", nil, private.loginDelaySeconds)
+			private.bootstrapped = true
+		elseif event == "PLAYER_ENTERING_WORLD" then
+			schedule("reload_or_world", nil, private.loginDelaySeconds)
+			private.bootstrapped = true
 		elseif event == "BAG_UPDATE" then
-			local bag = arg1
-			schedule("bag_update", { "bag:" .. tostring(bag) })
-		elseif event == "PLAYERBANKSLOTS_CHANGED" or event == "ITEM_LOCK_CHANGED" then
-			schedule(event:lower(), nil)
+			schedule("bag_update", { "bag:" .. tostring(arg1) }, private.debounceSeconds)
+		elseif event == "PLAYERBANKSLOTS_CHANGED" then
+			schedule("bank_update", nil, private.debounceSeconds)
 		end
 	end)
 
@@ -98,11 +104,17 @@ function AutoEval.Init()
 		end
 	end)
 
+	-- If Init runs after login events already fired, schedule catch-up
+	if UnitName and UnitName("player") then
+		schedule("init_after_login", nil, private.loginDelaySeconds)
+		private.bootstrapped = true
+	end
+
 	Logger.Info("UNKNOWN", "AutoEval", "Init", "Auto reevaluation armed (debounce " .. private.debounceSeconds .. "s)")
 end
 
 function AutoEval.Request(reason, itemKeys)
-	schedule(reason or "manual", itemKeys)
+	schedule(reason or "manual", itemKeys, private.debounceSeconds)
 end
 
 function AutoEval.SetEnabled(enabled)
@@ -115,6 +127,9 @@ function AutoEval.GetState()
 		running = private.running,
 		reason = private.pendingReason,
 		lastFullAt = private.lastFullAt,
+		lastStatus = private.lastStatus,
+		lastError = private.lastError,
 		enabled = private.enabled,
+		bootstrapped = private.bootstrapped,
 	}
 end
